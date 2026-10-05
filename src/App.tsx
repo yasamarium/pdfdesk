@@ -4,14 +4,14 @@ import { Header, type DeviceViewMode } from './components/Header';
 import { DropZone } from './components/DropZone';
 import { DesktopLayout } from './components/DesktopLayout';
 import { MobileLayout } from './components/MobileLayout';
+import { PdfEditorView } from './components/PdfEditorView';
+import { CloudVaultView } from './components/CloudVaultView';
+import { SignInModal } from './components/SignInModal';
 import { PagePreviewModal } from './components/PagePreviewModal';
 import { ResultPreviewModal } from './components/ResultPreviewModal';
-import type { PDFFileMetadata, PageInfo, SplitOptions } from './types';
+import type { PDFFileMetadata, PageInfo, SplitOptions, AppTab, CloudUser } from './types';
 import { loadPDFDocument, renderPageThumbnail } from './utils/pdfParser';
-import {
-  parseRangeString,
-  formatPagesToRange,
-} from './utils/rangeParser';
+import { parseRangeString, formatPagesToRange } from './utils/rangeParser';
 import {
   splitMergePages,
   splitIndividualPagesToZip,
@@ -19,8 +19,16 @@ import {
   downloadBlob,
 } from './utils/pdfSplitter';
 import type { SplitResult } from './utils/pdfSplitter';
+import { getStoredUser, signOutUser, uploadPdfToCloud } from './services/githubCloud';
 
 export const App: React.FC = () => {
+  // Navigation suite tab: splitter, editor, or vault
+  const [activeTab, setActiveTab] = useState<AppTab>('splitter');
+
+  // Authenticated GitHub user
+  const [user, setUser] = useState<CloudUser | null>(null);
+  const [showSignInModal, setShowSignInModal] = useState<boolean>(false);
+
   // Document state
   const [metadata, setMetadata] = useState<PDFFileMetadata | null>(null);
   const [pdfDoc, setPdfDoc] = useState<any | null>(null);
@@ -51,6 +59,17 @@ export const App: React.FC = () => {
   });
 
   const hiddenFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check stored user session on mount
+  useEffect(() => {
+    const cached = getStoredUser();
+    if (cached) setUser(cached);
+  }, []);
+
+  const handleSignOut = () => {
+    signOutUser();
+    setUser(null);
+  };
 
   // Load PDF file from ArrayBuffer
   const processArrayBuffer = async (arrayBuffer: ArrayBuffer, fileName: string) => {
@@ -155,6 +174,7 @@ export const App: React.FC = () => {
     setPreviewResult(null);
     setProgress(0);
     setIsProcessing(false);
+    setActiveTab('splitter');
   };
 
   // Range updates
@@ -262,7 +282,6 @@ export const App: React.FC = () => {
       const selectedPages = pages.filter((p) => p.selected).map((p) => p.pageNumber);
       let result: SplitResult;
 
-      // Clean custom filename
       const cleanCustomName = options.outputFilename.trim() || 'split_document';
 
       if (options.mode === 'extract_all') {
@@ -311,7 +330,6 @@ export const App: React.FC = () => {
       }
 
       if (!forPreview) {
-        // Celebratory confetti blast
         confetti({
           particleCount: 85,
           spread: 75,
@@ -343,18 +361,35 @@ export const App: React.FC = () => {
     }
   };
 
-  // Keyboard shortcut: Cmd/Ctrl + Enter
+  // Cloud Save Handler
+  const handleSaveToCloud = async (blob: Blob, name: string) => {
+    try {
+      await uploadPdfToCloud(blob, name, user);
+      confetti({
+        particleCount: 100,
+        spread: 80,
+        origin: { y: 0.7 },
+        colors: ['#30D158', '#0A84FF', '#BF5AF2', '#FFFFFF'],
+      });
+      alert(`"${name}" was saved to GitHub Releases Cloud Vault successfully!`);
+      setActiveTab('vault');
+    } catch (err: any) {
+      alert(`Cloud upload failed: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  // Keyboard shortcut: Cmd/Ctrl + Enter to split
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        if (metadata && !isProcessing) {
+        if (metadata && !isProcessing && activeTab === 'splitter') {
           handleSplitAndDownload();
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [metadata, isProcessing, pages, options]);
+  }, [metadata, isProcessing, pages, options, activeTab]);
 
   const selectedPagesCount = pages.filter((p) => p.selected).length;
 
@@ -373,25 +408,49 @@ export const App: React.FC = () => {
         }}
       />
 
-      {/* iOS Top Bar */}
+      {/* iOS Top Bar with Suite Navigation */}
       <Header
         onLoadSample={handleLoadSample}
         onReset={handleReset}
         hasFile={!!metadata}
         isLoading={isLoading}
+        activeTab={activeTab}
+        onTabChange={(tab) => setActiveTab(tab)}
+        user={user}
+        onOpenSignIn={() => setShowSignInModal(true)}
+        onSignOut={handleSignOut}
         viewMode={viewMode}
         onViewModeChange={(mode) => setViewMode(mode)}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 w-full flex flex-col">
-        {!metadata ? (
+        {/* TAB 1: CLOUD VAULT */}
+        {activeTab === 'vault' ? (
+          <CloudVaultView
+            user={user}
+            onOpenSignIn={() => setShowSignInModal(true)}
+            currentPdfBlob={metadata ? new Blob([metadata.arrayBuffer], { type: 'application/pdf' }) : null}
+            currentPdfName={metadata?.name}
+          />
+        ) : !metadata ? (
+          /* When no file is loaded, show the DropZone */
           <DropZone
             onFileSelect={handleFileSelect}
             onLoadSample={handleLoadSample}
             isLoading={isLoading}
           />
+        ) : activeTab === 'editor' ? (
+          /* TAB 2: PDF EDITOR */
+          <PdfEditorView
+            metadata={metadata}
+            pdfDoc={pdfDoc}
+            user={user}
+            onOpenSignIn={() => setShowSignInModal(true)}
+            onSaveToCloud={handleSaveToCloud}
+          />
         ) : (
+          /* TAB 3: PDF SPLITTER */
           <div className="w-full flex-1">
             {/* If viewMode is desktop: render DesktopLayout only */}
             {viewMode === 'desktop' && (
@@ -454,7 +513,6 @@ export const App: React.FC = () => {
             {/* If viewMode is auto: responsive switch based on screen width */}
             {viewMode === 'auto' && (
               <>
-                {/* Mobile on small screens (< 1024px) */}
                 <div className="block lg:hidden">
                   <MobileLayout
                     metadata={metadata}
@@ -482,7 +540,6 @@ export const App: React.FC = () => {
                   />
                 </div>
 
-                {/* Desktop Studio on large screens (>= 1024px) */}
                 <div className="hidden lg:block">
                   <DesktopLayout
                     metadata={metadata}
@@ -514,6 +571,14 @@ export const App: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* Sign In Modal */}
+      {showSignInModal && (
+        <SignInModal
+          onClose={() => setShowSignInModal(false)}
+          onSuccess={(u) => setUser(u)}
+        />
+      )}
 
       {/* Lightbox Live Page Preview Modal */}
       {lightboxPage !== null && (

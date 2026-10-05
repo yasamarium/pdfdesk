@@ -1,5 +1,17 @@
 import React from 'react';
-import { ShieldCheck, FileText, Sparkles, RefreshCw, Smartphone, Monitor } from 'lucide-react';
+import {
+  FileText,
+  Sparkles,
+  RefreshCw,
+  Smartphone,
+  Monitor,
+  Scissors,
+  PenTool,
+  Cloud,
+  User,
+  LogOut,
+} from 'lucide-react';
+import type { AppTab, CloudUser } from '../types';
 
 export type DeviceViewMode = 'auto' | 'mobile' | 'desktop';
 
@@ -8,6 +20,11 @@ interface HeaderProps {
   onReset: () => void;
   hasFile: boolean;
   isLoading: boolean;
+  activeTab: AppTab;
+  onTabChange: (tab: AppTab) => void;
+  user: CloudUser | null;
+  onOpenSignIn: () => void;
+  onSignOut: () => void;
   viewMode?: DeviceViewMode;
   onViewModeChange?: (mode: DeviceViewMode) => void;
 }
@@ -17,105 +34,172 @@ export const Header: React.FC<HeaderProps> = ({
   onReset,
   hasFile,
   isLoading,
+  activeTab,
+  onTabChange,
+  user,
+  onOpenSignIn,
+  onSignOut,
   viewMode = 'auto',
   onViewModeChange,
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full ios-glass-header transition-all">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Brand */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#0A84FF] to-[#5E5CE6] flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
-            <FileText className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold tracking-tight text-white font-sans">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+        {/* Brand & Suite Tabs */}
+        <div className="flex items-center gap-3 sm:gap-6 min-w-0">
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-[#0A84FF] to-[#5E5CE6] flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
+              <FileText className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <span className="text-base font-bold tracking-tight text-white font-sans block leading-none">
                 PDFDesk
               </span>
-              <span className="text-[10px] font-medium tracking-wide uppercase px-2 py-0.5 rounded-full bg-white/10 text-zinc-300 border border-white/10">
-                Client-Side
+              <span className="text-[10px] text-zinc-400 font-mono hidden sm:inline">
+                Pro Suite
               </span>
             </div>
-            <p className="text-xs text-zinc-400 hidden sm:block">
-              iOS Minimalist PDF Splitter & Extractor
-            </p>
           </div>
+
+          {/* Suite Tabs (Splitter, Editor, Cloud Vault) */}
+          <nav className="flex items-center p-1 rounded-2xl bg-zinc-900/90 border border-white/10 text-xs">
+            <button
+              type="button"
+              onClick={() => onTabChange('splitter')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'splitter'
+                  ? 'bg-[#0A84FF] text-white font-semibold shadow-md shadow-blue-500/25'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Scissors className="w-3.5 h-3.5" />
+              <span>Splitter</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onTabChange('editor')}
+              disabled={!hasFile}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'editor'
+                  ? 'bg-[#0A84FF] text-white font-semibold shadow-md shadow-blue-500/25'
+                  : hasFile
+                  ? 'text-zinc-400 hover:text-white'
+                  : 'text-zinc-600 cursor-not-allowed opacity-50'
+              }`}
+              title={!hasFile ? 'Load a PDF to edit' : 'PDF Editor'}
+            >
+              <PenTool className="w-3.5 h-3.5" />
+              <span>Editor</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onTabChange('vault')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'vault'
+                  ? 'bg-[#0A84FF] text-white font-semibold shadow-md shadow-blue-500/25'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Cloud className="w-3.5 h-3.5" />
+              <span>Cloud Vault</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#30D158]" />
+            </button>
+          </nav>
         </div>
 
-        {/* Center: Device View Mode Switcher (Desktop / Mobile Preview) */}
-        {hasFile && onViewModeChange && (
-          <div className="hidden sm:flex items-center p-1 rounded-2xl bg-zinc-900/90 border border-white/10 text-xs">
+        {/* Center: Device View Switcher (Desktop only) */}
+        {hasFile && onViewModeChange && activeTab === 'splitter' && (
+          <div className="hidden xl:flex items-center p-1 rounded-2xl bg-zinc-900/90 border border-white/10 text-xs">
             <button
               type="button"
               onClick={() => onViewModeChange('desktop')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl transition-all cursor-pointer ${
                 viewMode === 'desktop'
-                  ? 'bg-white/15 text-white font-medium shadow-sm'
+                  ? 'bg-white/15 text-white font-medium'
                   : 'text-zinc-400 hover:text-white'
               }`}
-              title="PC / Desktop Studio Layout"
             >
-              <Monitor className="w-3.5 h-3.5" />
+              <Monitor className="w-3 h-3" />
               <span>PC View</span>
             </button>
             <button
               type="button"
               onClick={() => onViewModeChange('mobile')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl transition-all cursor-pointer ${
                 viewMode === 'mobile'
-                  ? 'bg-white/15 text-white font-medium shadow-sm'
+                  ? 'bg-white/15 text-white font-medium'
                   : 'text-zinc-400 hover:text-white'
               }`}
-              title="Phone / Mobile Layout"
             >
-              <Smartphone className="w-3.5 h-3.5" />
+              <Smartphone className="w-3 h-3" />
               <span>Phone View</span>
             </button>
             <button
               type="button"
               onClick={() => onViewModeChange('auto')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-xl transition-all cursor-pointer ${
+              className={`px-2 py-1 rounded-xl transition-all cursor-pointer ${
                 viewMode === 'auto'
-                  ? 'bg-[#0A84FF] text-white font-medium shadow-sm'
+                  ? 'bg-[#0A84FF] text-white font-medium'
                   : 'text-zinc-400 hover:text-white'
               }`}
-              title="Auto-responsive based on screen size"
             >
-              <span>Auto</span>
+              Auto
             </button>
           </div>
         )}
 
-        {/* Center fallback when no file */}
-        {!hasFile && (
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900/80 border border-white/5 text-xs text-zinc-300">
-            <div className="w-2 h-2 rounded-full bg-[#30D158] animate-pulse" />
-            <ShieldCheck className="w-3.5 h-3.5 text-[#30D158]" />
-            <span>100% Private • Files never leave your browser</span>
-          </div>
-        )}
+        {/* Right actions: User Profile & Quick Buttons */}
+        <div className="flex items-center gap-2">
+          {/* User Profile Pill */}
+          {user ? (
+            <div className="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full bg-zinc-900 border border-white/10 text-xs">
+              <img
+                src={user.avatarUrl || 'https://github.com/github.png'}
+                alt={user.username}
+                className="w-5 h-5 rounded-full ring-1 ring-white/20"
+              />
+              <span className="text-zinc-200 font-medium hidden sm:inline max-w-[100px] truncate">
+                @{user.username}
+              </span>
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="p-1 rounded-full text-zinc-500 hover:text-red-400 hover:bg-white/10 transition-all cursor-pointer"
+                title="Sign Out"
+              >
+                <LogOut className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenSignIn}
+              className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-xs font-medium text-white transition-all flex items-center gap-1.5 border border-white/10 cursor-pointer"
+            >
+              <User className="w-3.5 h-3.5 text-[#0A84FF]" />
+              <span className="hidden sm:inline">Sign In</span>
+            </button>
+          )}
 
-        {/* Right actions */}
-        <div className="flex items-center gap-2.5">
           {!hasFile ? (
             <button
               onClick={onLoadSample}
               disabled={isLoading}
-              className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-xs font-medium text-white transition-all flex items-center gap-1.5 border border-white/10 cursor-pointer disabled:opacity-50"
-              title="Test with pre-loaded 8-page document"
+              className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-xs font-medium text-white transition-all flex items-center gap-1.5 border border-white/10 cursor-pointer disabled:opacity-50"
+              title="Load Sample Document"
             >
               <Sparkles className="w-3.5 h-3.5 text-[#0A84FF]" />
-              <span>Try Sample PDF</span>
+              <span className="hidden sm:inline">Try Sample</span>
             </button>
           ) : (
             <button
               onClick={onReset}
-              className="px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 text-xs font-medium text-zinc-300 transition-all flex items-center gap-1.5 border border-white/5 cursor-pointer"
-              title="Close current file"
+              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-all border border-white/5 cursor-pointer"
+              title="New / Clear File"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">New File</span>
             </button>
           )}
 
@@ -123,7 +207,7 @@ export const Header: React.FC<HeaderProps> = ({
             href="https://github.com/yasamarium/pdfdesk"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-2 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 text-zinc-300 hover:text-white transition-all border border-white/5"
+            className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-all border border-white/5"
             title="GitHub Repository"
           >
             <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">

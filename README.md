@@ -1,84 +1,82 @@
 # PDFDesk 📄⚡
 
-> **Minimalist iOS-Themed Client-Side PDF Splitter & Extractor with Real-Time Live Preview.**
+> **Minimalist iOS-Themed Client-Side PDF Splitter & Editor with Cloud Storage via GitHub Releases.**
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyasamarium%2Fpdfdesk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/yasamarium/pdfdesk?style=social)](https://github.com/yasamarium/pdfdesk)
+[![GitHub Vault](https://img.shields.io/badge/Cloud%20Vault-pdfdatabase-blue)](https://github.com/yasamarium/pdfdatabase)
 
 ---
 
-## ✨ Features
+## 🌟 What's New in PDFDesk Pro
 
-- **100% Client-Side Privacy**: Files never leave your browser. Zero uploads to any server. Completely safe for confidential documents, tax forms, IDs, and financial statements.
-- **Pure Black iOS Dark Theme**: Apple Human Interface Guidelines-inspired minimalist OLED aesthetic with frosted acrylic blur, fluid micro-interactions, and Cupertino typography.
-- **Interactive Live Preview**:
-  - Crisp high-resolution thumbnail grid rendered directly from PDF vectors.
-  - Fullscreen iOS Lightbox Viewer with zoom in/out, page flipping, and keyboard navigation (`←`, `→`, `Esc`).
-  - Pre-flight split output preview before saving.
-- **Multiple Precision Split Modes**:
-  - **Range & From-To**: Select ranges like `1-4, 7, 9-12` or set start and end boundaries.
-  - **Visual Selection**: One-click thumbnail toggle, range click, invert selection, odd/even selectors.
-  - **Extract Every Page**: Splits every page into single PDF documents packaged into a convenient ZIP.
-  - **Chunk Splitter**: Split document into equal parts of $N$ pages each.
-- **Page Transformations**: Rotate pages 90° clockwise before splitting.
-- **Instant Testing**: Built-in 8-page sample document so you can test features without needing a local PDF.
-- **Keyboard Shortcuts**: Press <kbd>Cmd</kbd> + <kbd>Enter</kbd> / <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to instantly split and download.
+1. **Integrated PDF Editor Studio**:
+   - **Freehand Pen & Ink**: Draw with customizable stroke widths and Apple palette colors.
+   - **Highlighter Tool**: Semi-transparent markup for contracts and notes.
+   - **Text Annotations**: Click anywhere on a page to insert custom typography (custom size, bold, color).
+   - **Digital Signature Stamp**: Draw signatures by mouse or touch, or type cursive signatures to stamp onto any page.
+   - **Watermark Engine**: Apply diagonal/horizontal watermark stamps (e.g. `CONFIDENTIAL`, `DRAFT`, `APPROVED`, or custom text) with opacity and font size controls.
+   - **Page Operations**: Rotate pages 90° CW/CCW, duplicate, and delete pages before exporting.
 
----
+2. **Cloud Storage Vault ([yasamarium/pdfdatabase](https://github.com/yasamarium/pdfdatabase))**:
+   - Save split or edited PDFs directly to the Cloud backed by **GitHub Releases**!
+   - Permanent direct CDN download links.
+   - User authentication: Sign in with GitHub PAT; user profiles and login records are cataloged directly into `pdfdatabase/users.json` and documents into `pdfdatabase/documents.json`.
+   - Manage documents in the Cloud Vault: copy direct links, preview in browser, and delete.
 
-## 🚀 Live Demo & Deployment
+3. **Custom Export File Name**:
+   - Rename output files with filesystem-safe sanitization.
+   - One-tap preset tags (`_split`, `_pages`, `_selected`, `_date`).
+   - Automatic `.pdf` or `.zip` extension handling.
 
-### Deploy to Vercel in 1 Click
-
-PDFDesk is preconfigured for zero-configuration Vercel deployment with included `vercel.json`:
-
-1. Click the **[Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyasamarium%2Fpdfdesk)** button.
-2. Connect your GitHub account and import `yasamarium/pdfdesk`.
-3. Click **Deploy**. Vercel will build and host the static site globally on Edge CDN within seconds.
+4. **Dedicated Phone (Mobile) & PC (Desktop) Layouts**:
+   - **Mobile Phone**: 2-column touch cards, finger steppers `[-] [ Page ] [+]`, expandable settings sheet, and bottom iOS action dock (`pb-safe`).
+   - **Desktop Studio**: 2-column productivity workspace with sticky tool panel, multi-column density switcher (3×, 4×, 5×), and keyboard shortcuts (<kbd>Ctrl</kbd> + <kbd>Enter</kbd> to split).
 
 ---
 
-## 🛠️ Tech Stack
+## 🚀 1-Click Vercel Deployment
 
-- **Framework**: [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
-- **Bundler**: [Vite](https://vitejs.dev/)
-- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) (iOS Glassmorphism & OLED Dark Mode)
-- **PDF Core**: [`pdf-lib`](https://pdf-lib.js.org/) for lossless client-side document assembly
-- **PDF Renderer**: [`pdfjs-dist`](https://mozilla.github.io/pdf.js/) for vector canvas previews
-- **Archive Packager**: [`jszip`](https://stuk.github.io/jszip/) for multi-file ZIP bundles
-- **Icons**: [`lucide-react`](https://lucide.dev/)
-- **Micro-interactions**: [`canvas-confetti`](https://www.npmjs.com/package/canvas-confetti)
+PDFDesk is 100% client-side and pre-configured for Vercel with `vercel.json`:
+
+1. Click **[Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyasamarium%2Fpdfdesk)**.
+2. Select your repository `yasamarium/pdfdesk`.
+3. Click **Deploy**. Your app is live in seconds on the Vercel Edge CDN!
 
 ---
 
-## 💻 Local Development
+## 🗄️ Connected Repositories
 
-Clone the repository and run locally:
+- **Application Frontend**: [yasamarium/pdfdesk](https://github.com/yasamarium/pdfdesk)
+- **Cloud Vault & Storage Database**: [yasamarium/pdfdatabase](https://github.com/yasamarium/pdfdatabase)
+  - Releases Storage: [pdfdatabase/releases](https://github.com/yasamarium/pdfdatabase/releases)
+  - User Directory: `users.json`
+  - Document Catalog: `documents.json`
+
+---
+
+## 🛠️ Local Development
 
 ```bash
-# Clone repository
+# Clone
 git clone https://github.com/yasamarium/pdfdesk.git
 cd pdfdesk
 
-# Install dependencies
+# Install
 npm install
 
-# Start Vite dev server
+# Run dev server
 npm run dev
 
 # Build for production
 npm run build
-
-# Preview production build
-npm run preview
 ```
 
 ---
 
 ## 🔒 Security & Privacy
 
-PDFDesk uses WebAssembly and client-side JavaScript APIs to process documents directly in memory. At no point are your PDF bytes sent across the network or stored in databases. You can even disconnect your internet connection and the app will function seamlessly.
+Document processing is performed entirely in memory using WebAssembly (`pdf-lib` & `pdfjs-dist`). Cloud saving is strictly opt-in and stored directly in your own authenticated GitHub repository vault.
 
 ---
 
