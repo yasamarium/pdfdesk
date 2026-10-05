@@ -362,8 +362,12 @@ export async function uploadPdfToCloud(
   const result = await uploadRes.json();
   const rawDownloadUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${DATABASE_REPO}/main/${storagePath}`;
 
+  // Generate concise, clean short code (7 alphanumeric characters)
+  const shortCode = Math.random().toString(36).substring(2, 5) + Date.now().toString(36).slice(-4);
+
   const cloudDoc: CloudDocument = {
-    id: result.content?.sha || String(timestamp),
+    id: result.content?.sha || `doc_${timestamp}`,
+    shortCode,
     name: filename.endsWith('.pdf') ? filename : `${filename}.pdf`,
     size: blob.size,
     downloadUrl: result.content?.download_url || rawDownloadUrl,
@@ -613,3 +617,126 @@ export async function deleteCloudDocument(
     return false;
   }
 }
+
+/**
+ * Extracts or computes a clean short code for a document
+ */
+export function getDocumentShortCode(doc: { id: string | number; shortCode?: string }): string {
+  if (doc.shortCode && doc.shortCode.trim()) {
+    return doc.shortCode.trim();
+  }
+  const idStr = String(doc.id);
+  const clean = idStr.replace(/^doc_/, '').replace(/[^a-zA-Z0-9]/g, '');
+  return clean.slice(0, 8) || idStr.slice(0, 8);
+}
+
+/**
+ * Builds a clean, branded short share link on our own domain
+ * (Never exposes raw GitHub or repository URLs)
+ */
+export function getShareableLink(doc: CloudDocument): string {
+  const code = getDocumentShortCode(doc);
+  const origin = typeof window !== 'undefined' && window.location.origin
+    ? window.location.origin
+    : '';
+  return `${origin}/v/${code}`;
+}
+
+/**
+ * Looks up a document record by its clean short code or ID
+ */
+export async function getDocumentByShortCode(code: string): Promise<CloudDocument | null> {
+  const token = getDbToken();
+  const cleanCode = code.trim().toLowerCase();
+  if (!cleanCode) return null;
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${REPO_OWNER}/${DATABASE_REPO}/contents/documents.json`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+        },
+      }
+    );
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const decoded = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
+    const parsed = JSON.parse(decoded);
+    const docs: CloudDocument[] = parsed.documents || [];
+
+    // Match shortCode, full ID, or ID prefix
+    const found = docs.find((d) => {
+      const docCode = getDocumentShortCode(d).toLowerCase();
+      const docId = String(d.id).toLowerCase();
+      return (
+        docCode === cleanCode ||
+        docId === cleanCode ||
+        docId.startsWith(cleanCode) ||
+        (d.shortCode && d.shortCode.toLowerCase() === cleanCode)
+      );
+    });
+
+    return found || null;
+  } catch (err) {
+    console.error('Failed to lookup document by shortcode:', err);
+    return null;
+  }
+}
+
+/**
+ * Securely streams the binary PDF data from cloud storage without exposing raw URLs to the client.
+ */
+export async function fetchDocumentBlob(
+  doc: CloudDocument
+): Promise<{ blob: Blob; arrayBuffer: ArrayBuffer }> {
+  const token = getDbToken();
+
+  // 1. Try authenticated GitHub contents endpoint if storagePath exists
+  if (doc.storagePath) {
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${REPO_OWNER}/${DATABASE_REPO}/contents/${doc.storagePath}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+          },
+        }
+      );
+
+      if (res.ok) {
+        const fileData = await res.json();
+        if (fileData.content) {
+          const binaryString = atob(fileData.content.replace(/\s/g, ''));
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const blob = new Blob([bytes.buffer], { type: 'application/pdf' });
+          return { blob, arrayBuffer: bytes.buffer };
+        }
+      }
+    } catch (e) {
+      console.warn('Authenticated storage retrieval warning, trying direct stream:', e);
+    }
+  }
+
+  // 2. Direct fetch as blob
+  if (doc.downloadUrl) {
+    const res = await fetch(doc.downloadUrl);
+    if (!res.ok) {
+      throw new Error(`Failed to load document content (${res.status})`);
+    }
+    const arrayBuffer = await res.arrayBuffer();
+    const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+    return { blob, arrayBuffer };
+  }
+
+  throw new Error('Document binary location not found.');
+}
+

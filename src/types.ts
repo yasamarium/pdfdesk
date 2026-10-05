@@ -65,6 +65,7 @@ export type CloudUser = AppUser;
 
 export interface CloudDocument {
   id: string | number;
+  shortCode?: string;
   name: string;
   size: number;
   downloadUrl: string;

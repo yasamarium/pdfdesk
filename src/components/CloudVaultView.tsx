@@ -13,12 +13,17 @@ import {
   LogIn,
   Lock,
   Share2,
+  Eye,
 } from 'lucide-react';
 import {
   listUserCloudDocuments,
   deleteCloudDocument,
   uploadPdfToCloud,
+  getShareableLink,
+  getDocumentShortCode,
+  fetchDocumentBlob,
 } from '../services/githubDatabase';
+import { downloadBlob } from '../utils/pdfSplitter';
 import type { AppUser, CloudDocument } from '../types';
 
 interface CloudVaultViewProps {
@@ -26,6 +31,7 @@ interface CloudVaultViewProps {
   onOpenSignIn: () => void;
   currentPdfBlob?: Blob | null;
   currentPdfName?: string;
+  onOpenDocumentViewer?: (shortCode: string) => void;
 }
 
 export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
@@ -33,6 +39,7 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
   onOpenSignIn,
   currentPdfBlob,
   currentPdfName,
+  onOpenDocumentViewer,
 }) => {
   const [documents, setDocuments] = useState<CloudDocument[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -40,6 +47,7 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [copiedId, setCopiedId] = useState<string | number | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | number | null>(null);
 
   // Fetch only this user's documents
   const fetchUserDocuments = async () => {
@@ -102,9 +110,23 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
   };
 
   const handleCopyLink = (doc: CloudDocument) => {
-    navigator.clipboard.writeText(doc.downloadUrl);
+    const link = getShareableLink(doc);
+    navigator.clipboard.writeText(link);
     setCopiedId(doc.id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleDownloadDirect = async (doc: CloudDocument) => {
+    setDownloadingId(doc.id);
+    try {
+      const { blob } = await fetchDocumentBlob(doc);
+      downloadBlob(blob, doc.name);
+    } catch (err: any) {
+      console.error('Download error:', err);
+      alert(`Download failed: ${err.message || 'Could not fetch document'}`);
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const formatSize = (bytes: number): string => {
@@ -327,7 +349,7 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
                   type="button"
                   onClick={() => handleCopyLink(doc)}
                   className="flex-1 py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-[11px] text-zinc-300 hover:text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  title="Copy direct share link"
+                  title="Copy clean share link on your domain"
                 >
                   {copiedId === doc.id ? (
                     <>
@@ -337,21 +359,42 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
                   ) : (
                     <>
                       <Share2 className="w-3 h-3" />
-                      <span>Share Link</span>
+                      <span>Share</span>
                     </>
                   )}
                 </button>
 
-                <a
-                  href={doc.downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="py-1.5 px-3 rounded-xl bg-[#0A84FF] hover:bg-blue-600 text-[11px] font-semibold text-white transition-all flex items-center gap-1 shadow-md shadow-blue-500/20"
-                  download={doc.name}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const code = getDocumentShortCode(doc);
+                    if (onOpenDocumentViewer) {
+                      onOpenDocumentViewer(code);
+                    } else {
+                      window.open(`/v/${code}`, '_blank');
+                    }
+                  }}
+                  className="py-1.5 px-3 rounded-xl bg-[#0A84FF] hover:bg-blue-600 text-[11px] font-semibold text-white transition-all flex items-center gap-1 shadow-md shadow-blue-500/20 cursor-pointer"
+                  title="View PDF directly in browser"
                 >
-                  <Download className="w-3 h-3" />
-                  <span>Download</span>
-                </a>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>View</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDownloadDirect(doc)}
+                  disabled={downloadingId === doc.id}
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 hover:text-white text-[11px] font-medium transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  title="Download PDF"
+                >
+                  {downloadingId === doc.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden md:inline">Save</span>
+                </button>
               </div>
             </div>
           ))}

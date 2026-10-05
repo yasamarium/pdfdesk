@@ -9,6 +9,7 @@ import { CloudVaultView } from './components/CloudVaultView';
 import { AuthModal } from './components/AuthModal';
 import { PagePreviewModal } from './components/PagePreviewModal';
 import { ResultPreviewModal } from './components/ResultPreviewModal';
+import { PublicPdfViewer } from './components/PublicPdfViewer';
 import type { PDFFileMetadata, PageInfo, SplitOptions, AppTab, AppUser } from './types';
 import { loadPDFDocument, renderPageThumbnail } from './utils/pdfParser';
 import { parseRangeString, formatPagesToRange } from './utils/rangeParser';
@@ -59,6 +60,45 @@ export const App: React.FC = () => {
   });
 
   const hiddenFileInputRef = useRef<HTMLInputElement>(null);
+
+  // In-browser Public PDF Viewer routing (/v/:shortCode)
+  const [viewingShortCode, setViewingShortCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkRoute = () => {
+      const path = window.location.pathname;
+      const search = window.location.search;
+      const hash = window.location.hash;
+
+      // 1. Path route: /v/<shortCode>
+      const pathMatch = path.match(/^\/v\/([a-zA-Z0-9_-]+)/i);
+      if (pathMatch && pathMatch[1]) {
+        setViewingShortCode(pathMatch[1]);
+        return;
+      }
+
+      // 2. Query param: ?v=<shortCode>
+      const searchParams = new URLSearchParams(search);
+      const vParam = searchParams.get('v');
+      if (vParam) {
+        setViewingShortCode(vParam);
+        return;
+      }
+
+      // 3. Hash route: #/v/<shortCode> or #v=<shortCode>
+      const hashMatch = hash.match(/#\/?v[=/]([a-zA-Z0-9_-]+)/i);
+      if (hashMatch && hashMatch[1]) {
+        setViewingShortCode(hashMatch[1]);
+        return;
+      }
+
+      setViewingShortCode(null);
+    };
+
+    checkRoute();
+    window.addEventListener('popstate', checkRoute);
+    return () => window.removeEventListener('popstate', checkRoute);
+  }, []);
 
   // Check stored user session on mount
   useEffect(() => {
@@ -397,6 +437,25 @@ export const App: React.FC = () => {
 
   const selectedPagesCount = pages.filter((p) => p.selected).length;
 
+  // Render In-Browser Secure PDF Viewer if route is /v/:shortCode
+  if (viewingShortCode) {
+    return (
+      <PublicPdfViewer
+        shortCode={viewingShortCode}
+        onOpenInStudio={async (buffer, fileName, targetTab) => {
+          setViewingShortCode(null);
+          window.history.pushState({}, '', '/');
+          await processArrayBuffer(buffer, fileName);
+          setActiveTab(targetTab);
+        }}
+        onBackToStudio={() => {
+          setViewingShortCode(null);
+          window.history.pushState({}, '', '/');
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-[#f5f5f7] flex flex-col font-sans selection:bg-[#0A84FF] selection:text-white">
       {/* Hidden File Picker */}
@@ -436,6 +495,10 @@ export const App: React.FC = () => {
             onOpenSignIn={() => setShowSignInModal(true)}
             currentPdfBlob={metadata ? new Blob([metadata.arrayBuffer], { type: 'application/pdf' }) : null}
             currentPdfName={metadata?.name}
+            onOpenDocumentViewer={(code) => {
+              setViewingShortCode(code);
+              window.history.pushState({}, '', `/v/${code}`);
+            }}
           />
         ) : !metadata ? (
           /* When no file is loaded, show the DropZone */
