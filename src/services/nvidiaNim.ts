@@ -1,6 +1,6 @@
 // ============================================================================
 // PDFDesk - NVIDIA NIM AI Assistant Service
-// High-performance inference via NVIDIA NIM Cloud API
+// High-performance inference via NVIDIA NIM Cloud API & Vercel Proxy
 // ============================================================================
 
 // Obfuscated XOR fallback key to prevent plaintext secret scanner triggers in git
@@ -23,8 +23,7 @@ export interface NvidiaModelInfo {
 }
 
 /**
- * Curated and strictly verified working models for NVIDIA NIM API.
- * Tested live with 200 OK responses.
+ * Curated and verified working models for NVIDIA NIM API.
  */
 export const VERIFIED_NVIDIA_MODELS: NvidiaModelInfo[] = [
   {
@@ -34,7 +33,7 @@ export const VERIFIED_NVIDIA_MODELS: NvidiaModelInfo[] = [
     badge: 'Vision & Multimodal',
     badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
     supportsVision: true,
-    recommendedTask: 'Best for page summarization, layout analysis & Q&A',
+    recommendedTask: 'Best for visual page layout analysis, diagrams & charts',
   },
   {
     id: 'nvidia/nemotron-3-ultra-550b-a55b',
@@ -43,7 +42,7 @@ export const VERIFIED_NVIDIA_MODELS: NvidiaModelInfo[] = [
     badge: '550B Flagship',
     badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
     supportsVision: false,
-    recommendedTask: 'Best for in-depth reasoning, clause review & rewriting',
+    recommendedTask: 'Best for in-depth reasoning, clause review & executive summaries',
   },
   {
     id: 'nvidia/nemotron-3.5-lightning-30b-a3b',
@@ -106,24 +105,40 @@ export interface SendNvidiaChatParams {
   prompt: string;
   systemPrompt?: string;
   pageImageBase64?: string | null;
+  pageText?: string | null;
   customApiKey?: string;
   maxTokens?: number;
 }
 
+// Resilient proxy endpoints to prevent browser CORS "Failed to fetch" errors
+const ENDPOINT_CANDIDATES = [
+  '/api/chat',
+  '/api/nvidia/v1/chat/completions',
+  'https://integrate.api.nvidia.com/v1/chat/completions',
+];
+
 /**
- * Execute chat completion query against NVIDIA NIM API.
+ * Execute chat completion query against NVIDIA NIM API with fallback routing.
  */
 export async function sendNvidiaChat({
   model,
   prompt,
   systemPrompt = 'You are an expert AI assistant embedded inside the PDFDesk Pro Suite editor. Provide direct, highly concise, structured, and helpful responses formatted in clean markdown.',
   pageImageBase64,
+  pageText,
   customApiKey,
   maxTokens = 1000,
 }: SendNvidiaChatParams): Promise<string> {
   const activeKey = customApiKey?.trim() || getEffectiveNvidiaApiKey();
   const modelDef = VERIFIED_NVIDIA_MODELS.find((m) => m.id === model);
   const useVision = !!(modelDef?.supportsVision && pageImageBase64);
+
+  // If text from page is available, enrich the prompt so text-only models understand the context
+  let userText = prompt;
+  if (pageText && pageText.trim()) {
+    const cleanDocSnippet = pageText.trim().slice(0, 3500);
+    userText = `Document Page Content:\n"""\n${cleanDocSnippet}\n"""\n\nTask:\n${prompt}`;
+  }
 
   const messages: any[] = [];
   if (systemPrompt) {
@@ -143,7 +158,7 @@ export async function sendNvidiaChat({
       content: [
         {
           type: 'text',
-          text: prompt || 'Please analyze this PDF page image in detail.',
+          text: userText || 'Please analyze this PDF page in detail.',
         },
         {
           type: 'image_url',
@@ -156,49 +171,76 @@ export async function sendNvidiaChat({
   } else {
     messages.push({
       role: 'user',
-      content: prompt,
+      content: userText,
     });
   }
 
-  const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${activeKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: maxTokens,
-      temperature: 0.3,
-    }),
-  });
+  const requestBody = {
+    model,
+    messages,
+    max_tokens: maxTokens,
+    temperature: 0.3,
+  };
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorDetail = `NVIDIA NIM API responded with status ${response.status}`;
+  let lastError: Error | null = null;
+
+  // Try candidate endpoints in order (Serverless function -> Vercel edge rewrite -> Direct)
+  for (const endpoint of ENDPOINT_CANDIDATES) {
     try {
-      const parsed = JSON.parse(errorText);
-      if (parsed.detail) errorDetail = parsed.detail;
-      else if (parsed.message) errorDetail = parsed.message;
-      else if (parsed.error?.message) errorDetail = parsed.error.message;
-    } catch {
-      if (errorText.length < 200) errorDetail = errorText;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${activeKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorDetail = `NVIDIA NIM responded with HTTP ${response.status}`;
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed.detail) errorDetail = parsed.detail;
+          else if (parsed.message) errorDetail = parsed.message;
+          else if (parsed.error?.message) errorDetail = parsed.error.message;
+        } catch {
+          if (errorText.length < 200) errorDetail = errorText;
+        }
+
+        // If 404 on proxy, attempt next candidate
+        if (response.status === 404 || response.status === 502 || response.status === 504) {
+          lastError = new Error(errorDetail);
+          continue;
+        }
+        throw new Error(errorDetail);
+      }
+
+      const data = await response.json();
+      const choice = data.choices?.[0];
+      const content =
+        choice?.message?.content ||
+        choice?.message?.reasoning_content ||
+        choice?.delta?.content ||
+        '';
+
+      if (!content) {
+        return 'No response returned from the model. Please try a different prompt or model.';
+      }
+
+      return content.trim();
+    } catch (err: any) {
+      lastError = err;
+      // If client browser failed to fetch (CORS preflight or network glitch), try next endpoint candidate
+      if (err.name === 'TypeError' || err.message?.includes('fetch')) {
+        continue;
+      }
+      throw err;
     }
-    throw new Error(errorDetail);
   }
 
-  const data = await response.json();
-  const choice = data.choices?.[0];
-  const content =
-    choice?.message?.content ||
-    choice?.message?.reasoning_content ||
-    choice?.delta?.content ||
-    '';
-
-  if (!content) {
-    return 'No response returned from the model. Please try a different prompt or model.';
-  }
-
-  return content.trim();
+  throw (
+    lastError ||
+    new Error('Failed to connect to NVIDIA NIM. Please verify your internet connection or API key.')
+  );
 }

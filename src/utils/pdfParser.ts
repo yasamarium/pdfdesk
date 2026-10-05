@@ -119,3 +119,57 @@ export async function generatePageThumbnails(
 
   return pages;
 }
+
+/**
+ * Extracts plain text from a specific PDF page
+ */
+export async function extractPageText(pdfDoc: any, pageNumber: number): Promise<string> {
+  try {
+    if (!pdfDoc || !pageNumber) return '';
+    const page = await pdfDoc.getPage(pageNumber);
+    const textContent = await page.getTextContent();
+    const strings = (textContent.items || [])
+      .map((item: any) => item.str || '')
+      .filter((s: string) => s.trim().length > 0);
+    return strings.join(' ').replace(/\s+/g, ' ').trim();
+  } catch (err) {
+    console.warn('Error extracting page text:', err);
+    return '';
+  }
+}
+
+/**
+ * Renders an optimized lightweight snapshot of a PDF page for AI vision (max 750px width, ~50-80KB)
+ */
+export async function renderPageAiSnapshot(
+  pdfDoc: any,
+  pageNumber: number
+): Promise<string> {
+  try {
+    if (!pdfDoc || !pageNumber) return '';
+    const page = await pdfDoc.getPage(pageNumber);
+    const initialViewport = page.getViewport({ scale: 1.0 });
+    const maxDimension = Math.max(initialViewport.width, initialViewport.height);
+    const scale = maxDimension > 800 ? 800 / maxDimension : 1.0;
+    const viewport = page.getViewport({ scale });
+
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { alpha: false });
+    if (!context) return '';
+
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    context.fillStyle = '#FFFFFF';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    await page.render({
+      canvasContext: context,
+      viewport,
+    }).promise;
+
+    return canvas.toDataURL('image/jpeg', 0.75);
+  } catch (err) {
+    console.warn('Error generating AI snapshot:', err);
+    return '';
+  }
+}

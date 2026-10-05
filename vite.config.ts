@@ -23,6 +23,20 @@ export default defineConfig({
     tailwindcss(),
     react(),
   ],
+  server: {
+    proxy: {
+      '/api/chat': {
+        target: 'https://integrate.api.nvidia.com',
+        changeOrigin: true,
+        rewrite: () => '/v1/chat/completions',
+      },
+      '/api/nvidia': {
+        target: 'https://integrate.api.nvidia.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/nvidia/, ''),
+      },
+    },
+  },
   optimizeDeps: {
     include: ['pdfjs-dist', 'pdf-lib', 'jszip'],
   },

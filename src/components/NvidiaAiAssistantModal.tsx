@@ -30,6 +30,7 @@ interface NvidiaAiAssistantModalProps {
   onClose: () => void;
   currentPage: number;
   pageSnapshotUrl: string | null;
+  pageText?: string;
   onStampTextToPdf: (text: string) => void;
 }
 
@@ -38,6 +39,7 @@ export const NvidiaAiAssistantModal: React.FC<NvidiaAiAssistantModalProps> = ({
   onClose,
   currentPage,
   pageSnapshotUrl,
+  pageText,
   onStampTextToPdf,
 }) => {
   const [selectedModel, setSelectedModel] = useState<string>(VERIFIED_NVIDIA_MODELS[0].id);
@@ -73,6 +75,7 @@ export const NvidiaAiAssistantModal: React.FC<NvidiaAiAssistantModalProps> = ({
           customSystemPrompt ||
           'You are an expert AI assistant embedded inside the PDFDesk editor. Provide clear, direct, and concise output suitable for document notes and executive review.',
         pageImageBase64: pageSnapshotUrl,
+        pageText,
       });
       setResponse(result);
     } catch (err: any) {

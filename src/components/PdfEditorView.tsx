@@ -19,7 +19,7 @@ import {
   Loader2,
   Sparkles,
 } from 'lucide-react';
-import { renderPageHighRes } from '../utils/pdfParser';
+import { renderPageHighRes, extractPageText, renderPageAiSnapshot } from '../utils/pdfParser';
 import { compileEditedPdf } from '../utils/pdfEditorEngine';
 import { downloadBlob } from '../utils/pdfSplitter';
 import { SignatureModal } from './SignatureModal';
@@ -82,8 +82,10 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
   const isDrawingRef = useRef<boolean>(false);
   const historyRef = useRef<Record<number, ImageData[]>>({});
 
-  // Current page high-res URL
+  // Current page high-res URL & contextual AI data
   const [pageDataUrl, setPageDataUrl] = useState<string | null>(null);
+  const [aiSnapshotUrl, setAiSnapshotUrl] = useState<string | null>(null);
+  const [pageText, setPageText] = useState<string>('');
   const [pageLoading, setPageLoading] = useState<boolean>(true);
 
   // Initialize page order
@@ -93,12 +95,22 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
     }
   }, [metadata.pageCount]);
 
-  // Load high-res render of current page
+  // Load high-res render and AI data of current page
   useEffect(() => {
     let active = true;
     setPageLoading(true);
 
     if (pdfDoc && currentPage) {
+      // Extract contextual page text for AI LLMs
+      extractPageText(pdfDoc, currentPage).then((txt) => {
+        if (active) setPageText(txt);
+      });
+
+      // Extract lightweight optimized snapshot for AI vision
+      renderPageAiSnapshot(pdfDoc, currentPage).then((snap) => {
+        if (active) setAiSnapshotUrl(snap);
+      });
+
       renderPageHighRes(pdfDoc, currentPage, 1.8)
         .then((res) => {
           if (active) {
@@ -827,7 +839,8 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
         isOpen={showAiAssistant}
         onClose={() => setShowAiAssistant(false)}
         currentPage={currentPage}
-        pageSnapshotUrl={pageDataUrl}
+        pageSnapshotUrl={aiSnapshotUrl || pageDataUrl}
+        pageText={pageText}
         onStampTextToPdf={handleStampTextFromAi}
       />
     </div>
