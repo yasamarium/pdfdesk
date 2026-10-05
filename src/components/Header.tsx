@@ -1,11 +1,15 @@
 import React from 'react';
-import { ShieldCheck, FileText, Sparkles, RefreshCw } from 'lucide-react';
+import { ShieldCheck, FileText, Sparkles, RefreshCw, Smartphone, Monitor } from 'lucide-react';
+
+export type DeviceViewMode = 'auto' | 'mobile' | 'desktop';
 
 interface HeaderProps {
   onLoadSample: () => void;
   onReset: () => void;
   hasFile: boolean;
   isLoading: boolean;
+  viewMode?: DeviceViewMode;
+  onViewModeChange?: (mode: DeviceViewMode) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -13,6 +17,8 @@ export const Header: React.FC<HeaderProps> = ({
   onReset,
   hasFile,
   isLoading,
+  viewMode = 'auto',
+  onViewModeChange,
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full ios-glass-header transition-all">
@@ -37,12 +43,58 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Center: Privacy indicator */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900/80 border border-white/5 text-xs text-zinc-300">
-          <div className="w-2 h-2 rounded-full bg-[#30D158] animate-pulse" />
-          <ShieldCheck className="w-3.5 h-3.5 text-[#30D158]" />
-          <span>100% Private • Files never leave your browser</span>
-        </div>
+        {/* Center: Device View Mode Switcher (Desktop / Mobile Preview) */}
+        {hasFile && onViewModeChange && (
+          <div className="hidden sm:flex items-center p-1 rounded-2xl bg-zinc-900/90 border border-white/10 text-xs">
+            <button
+              type="button"
+              onClick={() => onViewModeChange('desktop')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition-all cursor-pointer ${
+                viewMode === 'desktop'
+                  ? 'bg-white/15 text-white font-medium shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="PC / Desktop Studio Layout"
+            >
+              <Monitor className="w-3.5 h-3.5" />
+              <span>PC View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onViewModeChange('mobile')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition-all cursor-pointer ${
+                viewMode === 'mobile'
+                  ? 'bg-white/15 text-white font-medium shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Phone / Mobile Layout"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>Phone View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onViewModeChange('auto')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-xl transition-all cursor-pointer ${
+                viewMode === 'auto'
+                  ? 'bg-[#0A84FF] text-white font-medium shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Auto-responsive based on screen size"
+            >
+              <span>Auto</span>
+            </button>
+          </div>
+        )}
+
+        {/* Center fallback when no file */}
+        {!hasFile && (
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900/80 border border-white/5 text-xs text-zinc-300">
+            <div className="w-2 h-2 rounded-full bg-[#30D158] animate-pulse" />
+            <ShieldCheck className="w-3.5 h-3.5 text-[#30D158]" />
+            <span>100% Private • Files never leave your browser</span>
+          </div>
+        )}
 
         {/* Right actions */}
         <div className="flex items-center gap-2.5">
@@ -63,7 +115,7 @@ export const Header: React.FC<HeaderProps> = ({
               title="Close current file"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>New File</span>
+              <span className="hidden sm:inline">New File</span>
             </button>
           )}
 

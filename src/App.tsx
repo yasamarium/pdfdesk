@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import confetti from 'canvas-confetti';
-import { Header } from './components/Header';
+import { Header, type DeviceViewMode } from './components/Header';
 import { DropZone } from './components/DropZone';
-import { DocumentInfoBar } from './components/DocumentInfoBar';
-import { SplitControls } from './components/SplitControls';
-import { PageGrid } from './components/PageGrid';
+import { DesktopLayout } from './components/DesktopLayout';
+import { MobileLayout } from './components/MobileLayout';
 import { PagePreviewModal } from './components/PagePreviewModal';
 import { ResultPreviewModal } from './components/ResultPreviewModal';
-import { FloatingActionBar } from './components/FloatingActionBar';
 import type { PDFFileMetadata, PageInfo, SplitOptions } from './types';
 import { loadPDFDocument, renderPageThumbnail } from './utils/pdfParser';
 import {
@@ -29,7 +27,10 @@ export const App: React.FC = () => {
   const [pages, setPages] = useState<PageInfo[]>([]);
   const [rotations, setRotations] = useState<Record<number, number>>({});
 
-  // App state
+  // View mode switcher: auto, mobile, or desktop
+  const [viewMode, setViewMode] = useState<DeviceViewMode>('auto');
+
+  // App processing state
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
@@ -45,7 +46,7 @@ export const App: React.FC = () => {
     fromPage: 1,
     toPage: 1,
     chunkSize: 2,
-    outputFilename: 'split-document.pdf',
+    outputFilename: 'document_split',
     mergeIntoSingle: true,
   });
 
@@ -81,20 +82,20 @@ export const App: React.FC = () => {
       }
       setPages(initialPages);
 
-      const baseName = fileName.replace(/\.pdf$/i, '');
+      const baseName = fileName.replace(/\.pdf$/i, '').trim();
       setOptions({
         mode: 'range',
         rangeString: total > 1 ? `1-${total}` : '1',
         fromPage: 1,
         toPage: total,
         chunkSize: Math.max(1, Math.min(2, total)),
-        outputFilename: `${baseName}_split.pdf`,
+        outputFilename: `${baseName}_split`,
         mergeIntoSingle: true,
       });
 
       // Stream thumbnails render
       for (let i = 1; i <= total; i++) {
-        renderPageThumbnail(doc, i, 0.4)
+        renderPageThumbnail(doc, i, 0.45)
           .then((thumb) => {
             setPages((prev) =>
               prev.map((p) =>
@@ -136,7 +137,7 @@ export const App: React.FC = () => {
       const response = await fetch('/sample.pdf');
       if (!response.ok) throw new Error('Could not fetch sample document');
       const arrayBuffer = await response.arrayBuffer();
-      await processArrayBuffer(arrayBuffer, 'sample_contract_overview.pdf');
+      await processArrayBuffer(arrayBuffer, 'sample_document.pdf');
     } catch (err) {
       console.error('Failed to load sample:', err);
       alert('Could not load the built-in sample document.');
@@ -181,7 +182,7 @@ export const App: React.FC = () => {
     });
   };
 
-  // Preset operations
+  // Selection presets
   const handleSelectAll = useCallback(() => {
     if (!metadata) return;
     setPages((prev) => prev.map((p) => ({ ...p, selected: true })));
@@ -225,7 +226,7 @@ export const App: React.FC = () => {
     });
   };
 
-  // Rotation operations
+  // Page rotation
   const handleRotatePage = (pageNumber: number) => {
     setRotations((prev) => {
       const current = prev[pageNumber] || 0;
@@ -261,12 +262,15 @@ export const App: React.FC = () => {
       const selectedPages = pages.filter((p) => p.selected).map((p) => p.pageNumber);
       let result: SplitResult;
 
+      // Clean custom filename
+      const cleanCustomName = options.outputFilename.trim() || 'split_document';
+
       if (options.mode === 'extract_all') {
         const allNums = Array.from({ length: metadata.pageCount }, (_, i) => i + 1);
         result = await splitIndividualPagesToZip(
           metadata.arrayBuffer,
           allNums,
-          metadata.name,
+          cleanCustomName,
           rotations,
           (prog) => setProgress(prog)
         );
@@ -275,7 +279,7 @@ export const App: React.FC = () => {
           metadata.arrayBuffer,
           options.chunkSize,
           metadata.pageCount,
-          metadata.name,
+          cleanCustomName,
           rotations,
           (prog) => setProgress(prog)
         );
@@ -289,7 +293,7 @@ export const App: React.FC = () => {
           metadata.arrayBuffer,
           selectedPages,
           rotations,
-          options.outputFilename
+          cleanCustomName.endsWith('.pdf') ? cleanCustomName : `${cleanCustomName}.pdf`
         );
       } else {
         if (selectedPages.length === 0) {
@@ -300,17 +304,17 @@ export const App: React.FC = () => {
         result = await splitIndividualPagesToZip(
           metadata.arrayBuffer,
           selectedPages,
-          metadata.name,
+          cleanCustomName,
           rotations,
           (prog) => setProgress(prog)
         );
       }
 
       if (!forPreview) {
-        // Trigger celebratory confetti blast
+        // Celebratory confetti blast
         confetti({
-          particleCount: 80,
-          spread: 70,
+          particleCount: 85,
+          spread: 75,
           origin: { y: 0.8 },
           colors: ['#0A84FF', '#5E5CE6', '#30D158', '#FFFFFF'],
         });
@@ -339,7 +343,7 @@ export const App: React.FC = () => {
     }
   };
 
-  // Keyboard shortcut: Cmd/Ctrl + Enter to trigger split
+  // Keyboard shortcut: Cmd/Ctrl + Enter
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -355,7 +359,7 @@ export const App: React.FC = () => {
   const selectedPagesCount = pages.filter((p) => p.selected).length;
 
   return (
-    <div className="min-h-screen bg-black text-[#f5f5f7] flex flex-col font-sans selection:bg-[#0A84FF] selection:text-white pb-32">
+    <div className="min-h-screen bg-black text-[#f5f5f7] flex flex-col font-sans selection:bg-[#0A84FF] selection:text-white">
       {/* Hidden File Picker */}
       <input
         ref={hiddenFileInputRef}
@@ -375,6 +379,8 @@ export const App: React.FC = () => {
         onReset={handleReset}
         hasFile={!!metadata}
         isLoading={isLoading}
+        viewMode={viewMode}
+        onViewModeChange={(mode) => setViewMode(mode)}
       />
 
       {/* Main Content Area */}
@@ -386,54 +392,128 @@ export const App: React.FC = () => {
             isLoading={isLoading}
           />
         ) : (
-          <div className="w-full flex flex-col animate-ios-enter">
-            {/* Document Details Strip */}
-            <DocumentInfoBar
-              metadata={metadata}
-              selectedCount={selectedPagesCount}
-              onChangeFile={() => hiddenFileInputRef.current?.click()}
-              onReset={handleReset}
-            />
+          <div className="w-full flex-1">
+            {/* If viewMode is desktop: render DesktopLayout only */}
+            {viewMode === 'desktop' && (
+              <DesktopLayout
+                metadata={metadata}
+                pages={pages}
+                options={options}
+                selectedCount={selectedPagesCount}
+                rotations={rotations}
+                isProcessing={isProcessing}
+                progress={progress}
+                onOptionsChange={(newOpt) => setOptions((prev) => ({ ...prev, ...newOpt }))}
+                onApplyRange={handleApplyRange}
+                onToggleSelect={handleToggleSelect}
+                onPreviewPage={(pageNum) => setLightboxPage(pageNum)}
+                onRotatePage={handleRotatePage}
+                onRotateAllSelected={handleRotateAllSelected}
+                onSelectAll={handleSelectAll}
+                onDeselectAll={handleDeselectAll}
+                onInvertSelection={handleInvertSelection}
+                onSelectOdd={handleSelectOdd}
+                onSelectEven={handleSelectEven}
+                onChangeFile={() => hiddenFileInputRef.current?.click()}
+                onReset={handleReset}
+                onSplit={handleSplitAndDownload}
+                onPreviewResult={handlePreviewResult}
+              />
+            )}
 
-            {/* Split Options Panel */}
-            <SplitControls
-              totalPages={metadata.pageCount}
-              options={options}
-              onOptionsChange={(newOpt) => setOptions((prev) => ({ ...prev, ...newOpt }))}
-              onApplyRange={handleApplyRange}
-              onSelectAll={handleSelectAll}
-              onDeselectAll={handleDeselectAll}
-              onInvertSelection={handleInvertSelection}
-              onSelectOdd={handleSelectOdd}
-              onSelectEven={handleSelectEven}
-              onRotateAllSelected={handleRotateAllSelected}
-              selectedPagesCount={selectedPagesCount}
-            />
+            {/* If viewMode is mobile: render MobileLayout centered */}
+            {viewMode === 'mobile' && (
+              <div className="max-w-md mx-auto">
+                <MobileLayout
+                  metadata={metadata}
+                  pages={pages}
+                  options={options}
+                  selectedCount={selectedPagesCount}
+                  rotations={rotations}
+                  isProcessing={isProcessing}
+                  progress={progress}
+                  onOptionsChange={(newOpt) => setOptions((prev) => ({ ...prev, ...newOpt }))}
+                  onApplyRange={handleApplyRange}
+                  onToggleSelect={handleToggleSelect}
+                  onPreviewPage={(pageNum) => setLightboxPage(pageNum)}
+                  onRotatePage={handleRotatePage}
+                  onRotateAllSelected={handleRotateAllSelected}
+                  onSelectAll={handleSelectAll}
+                  onDeselectAll={handleDeselectAll}
+                  onInvertSelection={handleInvertSelection}
+                  onSelectOdd={handleSelectOdd}
+                  onSelectEven={handleSelectEven}
+                  onChangeFile={() => hiddenFileInputRef.current?.click()}
+                  onReset={handleReset}
+                  onSplit={handleSplitAndDownload}
+                  onPreviewResult={handlePreviewResult}
+                />
+              </div>
+            )}
 
-            {/* Live Interactive Page Grid */}
-            <PageGrid
-              pages={pages}
-              onToggleSelect={handleToggleSelect}
-              onPreviewPage={(pageNum) => setLightboxPage(pageNum)}
-              onRotatePage={handleRotatePage}
-            />
+            {/* If viewMode is auto: responsive switch based on screen width */}
+            {viewMode === 'auto' && (
+              <>
+                {/* Mobile on small screens (< 1024px) */}
+                <div className="block lg:hidden">
+                  <MobileLayout
+                    metadata={metadata}
+                    pages={pages}
+                    options={options}
+                    selectedCount={selectedPagesCount}
+                    rotations={rotations}
+                    isProcessing={isProcessing}
+                    progress={progress}
+                    onOptionsChange={(newOpt) => setOptions((prev) => ({ ...prev, ...newOpt }))}
+                    onApplyRange={handleApplyRange}
+                    onToggleSelect={handleToggleSelect}
+                    onPreviewPage={(pageNum) => setLightboxPage(pageNum)}
+                    onRotatePage={handleRotatePage}
+                    onRotateAllSelected={handleRotateAllSelected}
+                    onSelectAll={handleSelectAll}
+                    onDeselectAll={handleDeselectAll}
+                    onInvertSelection={handleInvertSelection}
+                    onSelectOdd={handleSelectOdd}
+                    onSelectEven={handleSelectEven}
+                    onChangeFile={() => hiddenFileInputRef.current?.click()}
+                    onReset={handleReset}
+                    onSplit={handleSplitAndDownload}
+                    onPreviewResult={handlePreviewResult}
+                  />
+                </div>
+
+                {/* Desktop Studio on large screens (>= 1024px) */}
+                <div className="hidden lg:block">
+                  <DesktopLayout
+                    metadata={metadata}
+                    pages={pages}
+                    options={options}
+                    selectedCount={selectedPagesCount}
+                    rotations={rotations}
+                    isProcessing={isProcessing}
+                    progress={progress}
+                    onOptionsChange={(newOpt) => setOptions((prev) => ({ ...prev, ...newOpt }))}
+                    onApplyRange={handleApplyRange}
+                    onToggleSelect={handleToggleSelect}
+                    onPreviewPage={(pageNum) => setLightboxPage(pageNum)}
+                    onRotatePage={handleRotatePage}
+                    onRotateAllSelected={handleRotateAllSelected}
+                    onSelectAll={handleSelectAll}
+                    onDeselectAll={handleDeselectAll}
+                    onInvertSelection={handleInvertSelection}
+                    onSelectOdd={handleSelectOdd}
+                    onSelectEven={handleSelectEven}
+                    onChangeFile={() => hiddenFileInputRef.current?.click()}
+                    onReset={handleReset}
+                    onSplit={handleSplitAndDownload}
+                    onPreviewResult={handlePreviewResult}
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
       </main>
-
-      {/* Floating Bottom iOS Action Dock */}
-      {metadata && (
-        <FloatingActionBar
-          options={options}
-          selectedCount={selectedPagesCount}
-          totalPages={metadata.pageCount}
-          isProcessing={isProcessing}
-          progress={progress}
-          onSplit={handleSplitAndDownload}
-          onPreviewResult={handlePreviewResult}
-          onFilenameChange={(name) => setOptions((prev) => ({ ...prev, outputFilename: name }))}
-        />
-      )}
 
       {/* Lightbox Live Page Preview Modal */}
       {lightboxPage !== null && (
