@@ -22,6 +22,28 @@ import {
 import type { SplitResult } from './utils/pdfSplitter';
 import { getCurrentUser, signOutUser, uploadPdfToCloud } from './services/githubDatabase';
 
+function getInitialRouteCode(): string | null {
+  if (typeof window === 'undefined') return null;
+  const path = window.location.pathname;
+  const search = window.location.search;
+  const hash = window.location.hash;
+
+  // 1. Path route: /v/<shortCode>
+  const pathMatch = path.match(/^\/v\/([a-zA-Z0-9_-]+)/i);
+  if (pathMatch && pathMatch[1]) return pathMatch[1];
+
+  // 2. Query param: ?v=<shortCode>
+  const searchParams = new URLSearchParams(search);
+  const vParam = searchParams.get('v');
+  if (vParam) return vParam;
+
+  // 3. Hash route: #/v/<shortCode> or #v=<shortCode>
+  const hashMatch = hash.match(/#\/?v[=/]([a-zA-Z0-9_-]+)/i);
+  if (hashMatch && hashMatch[1]) return hashMatch[1];
+
+  return null;
+}
+
 export const App: React.FC = () => {
   // Navigation suite tab: splitter, editor, or vault
   const [activeTab, setActiveTab] = useState<AppTab>('splitter');
@@ -62,37 +84,11 @@ export const App: React.FC = () => {
   const hiddenFileInputRef = useRef<HTMLInputElement>(null);
 
   // In-browser Public PDF Viewer routing (/v/:shortCode)
-  const [viewingShortCode, setViewingShortCode] = useState<string | null>(null);
+  const [viewingShortCode, setViewingShortCode] = useState<string | null>(getInitialRouteCode);
 
   useEffect(() => {
     const checkRoute = () => {
-      const path = window.location.pathname;
-      const search = window.location.search;
-      const hash = window.location.hash;
-
-      // 1. Path route: /v/<shortCode>
-      const pathMatch = path.match(/^\/v\/([a-zA-Z0-9_-]+)/i);
-      if (pathMatch && pathMatch[1]) {
-        setViewingShortCode(pathMatch[1]);
-        return;
-      }
-
-      // 2. Query param: ?v=<shortCode>
-      const searchParams = new URLSearchParams(search);
-      const vParam = searchParams.get('v');
-      if (vParam) {
-        setViewingShortCode(vParam);
-        return;
-      }
-
-      // 3. Hash route: #/v/<shortCode> or #v=<shortCode>
-      const hashMatch = hash.match(/#\/?v[=/]([a-zA-Z0-9_-]+)/i);
-      if (hashMatch && hashMatch[1]) {
-        setViewingShortCode(hashMatch[1]);
-        return;
-      }
-
-      setViewingShortCode(null);
+      setViewingShortCode(getInitialRouteCode());
     };
 
     checkRoute();

@@ -689,16 +689,20 @@ export async function getDocumentByShortCode(code: string): Promise<CloudDocumen
 
 /**
  * Securely streams the binary PDF data from cloud storage without exposing raw URLs to the client.
+ * Uses GitHub Git Blobs API (which supports files up to 100MB with 100% full CORS support on api.github.com).
  */
 export async function fetchDocumentBlob(
   doc: CloudDocument
 ): Promise<{ blob: Blob; arrayBuffer: ArrayBuffer }> {
   const token = getDbToken();
 
-  // 1. Try authenticated GitHub contents endpoint if storagePath exists
-  if (doc.storagePath) {
+  // 1. Resolve Git Blob SHA
+  let blobSha = doc.sha;
+
+  // If sha is not present or is not a git sha, fetch sha from contents metadata
+  if (!blobSha && doc.storagePath) {
     try {
-      const res = await fetch(
+      const metaRes = await fetch(
         `https://api.github.com/repos/${REPO_OWNER}/${DATABASE_REPO}/contents/${doc.storagePath}`,
         {
           headers: {
@@ -707,11 +711,34 @@ export async function fetchDocumentBlob(
           },
         }
       );
+      if (metaRes.ok) {
+        const metaData = await metaRes.json();
+        if (metaData.sha) {
+          blobSha = metaData.sha;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not query storagePath metadata:', e);
+    }
+  }
 
-      if (res.ok) {
-        const fileData = await res.json();
-        if (fileData.content) {
-          const binaryString = atob(fileData.content.replace(/\s/g, ''));
+  // 2. Fetch via Git Blobs API (Works for any file size up to 100MB, full CORS on api.github.com)
+  if (blobSha) {
+    try {
+      const blobRes = await fetch(
+        `https://api.github.com/repos/${REPO_OWNER}/${DATABASE_REPO}/git/blobs/${blobSha}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+          },
+        }
+      );
+
+      if (blobRes.ok) {
+        const blobJson = await blobRes.json();
+        if (blobJson.content) {
+          const binaryString = atob(blobJson.content.replace(/\s/g, ''));
           const len = binaryString.length;
           const bytes = new Uint8Array(len);
           for (let i = 0; i < len; i++) {
@@ -722,21 +749,24 @@ export async function fetchDocumentBlob(
         }
       }
     } catch (e) {
-      console.warn('Authenticated storage retrieval warning, trying direct stream:', e);
+      console.warn('Git blobs API retrieval error:', e);
     }
   }
 
-  // 2. Direct fetch as blob
+  // 3. Fallback: try direct fetch if downloadUrl is present
   if (doc.downloadUrl) {
-    const res = await fetch(doc.downloadUrl);
-    if (!res.ok) {
-      throw new Error(`Failed to load document content (${res.status})`);
+    try {
+      const res = await fetch(doc.downloadUrl);
+      if (res.ok) {
+        const arrayBuffer = await res.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+        return { blob, arrayBuffer };
+      }
+    } catch (e) {
+      console.warn('Direct downloadUrl fallback failed:', e);
     }
-    const arrayBuffer = await res.arrayBuffer();
-    const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
-    return { blob, arrayBuffer };
   }
 
-  throw new Error('Document binary location not found.');
+  throw new Error('Could not retrieve document from cloud storage.');
 }
 
