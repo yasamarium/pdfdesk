@@ -79,15 +79,12 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => onTabChange('editor')}
-              disabled={!hasFile}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'editor'
                   ? 'bg-[#0A84FF] text-white font-semibold shadow-md shadow-blue-500/25'
-                  : hasFile
-                  ? 'text-zinc-400 hover:text-white'
-                  : 'text-zinc-600 cursor-not-allowed opacity-50'
+                  : 'text-zinc-400 hover:text-white'
               }`}
-              title={!hasFile ? 'Load a PDF to edit' : 'PDF Editor'}
+              title="Interactive PDF Editor Studio"
             >
               <PenTool className="w-3.5 h-3.5" />
               <span>Editor</span>

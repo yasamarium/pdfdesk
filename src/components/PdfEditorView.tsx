@@ -17,6 +17,7 @@ import {
   Maximize2,
   FileSignature,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { renderPageHighRes } from '../utils/pdfParser';
 import { compileEditedPdf } from '../utils/pdfEditorEngine';
@@ -24,6 +25,7 @@ import { downloadBlob } from '../utils/pdfSplitter';
 import { SignatureModal } from './SignatureModal';
 import { WatermarkModal } from './WatermarkModal';
 import { CustomNameInput } from './CustomNameInput';
+import { NvidiaAiAssistantModal } from './NvidiaAiAssistantModal';
 import type { PDFFileMetadata, TextAnnotation, WatermarkConfig, EditorTool, CloudUser } from '../types';
 
 interface PdfEditorViewProps {
@@ -72,6 +74,7 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
   // Modals
   const [showSignatureModal, setShowSignatureModal] = useState<boolean>(false);
   const [showWatermarkModal, setShowWatermarkModal] = useState<boolean>(false);
+  const [showAiAssistant, setShowAiAssistant] = useState<boolean>(false);
 
   // Canvas refs
   const pageImageRef = useRef<HTMLImageElement>(null);
@@ -263,6 +266,21 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
       ctx.drawImage(img, x, y, sigWidth, sigHeight);
       setDrawings((prev) => ({ ...prev, [currentPage]: canvas.toDataURL('image/png') }));
     };
+  };
+
+  const handleStampTextFromAi = (text: string) => {
+    const newAnnotation: TextAnnotation = {
+      id: `ai_${Date.now()}`,
+      pageNumber: currentPage,
+      text: text.trim(),
+      x: 10,
+      y: 12,
+      fontSize: 14,
+      color: strokeColor === '#000000' ? '#0A84FF' : strokeColor,
+      isBold: true,
+    };
+    setTextAnnotations((prev) => [...prev, newAnnotation]);
+    setActiveTool('select');
   };
 
   const handleUndo = () => {
@@ -502,8 +520,20 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
           </div>
         </div>
 
-        {/* Actions: Save & Cloud */}
+        {/* Actions: AI Helper, Save & Cloud */}
         <div className="flex items-center gap-2">
+          {/* NVIDIA NIM AI Helper */}
+          <button
+            type="button"
+            onClick={() => setShowAiAssistant(true)}
+            className="px-3 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 active:scale-95 text-xs font-semibold text-purple-200 hover:text-white transition-all flex items-center gap-1.5 border border-purple-500/30 shadow-md shadow-purple-500/10 cursor-pointer"
+            title="NVIDIA NIM AI Assistant - Summarize, translate & query page"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+            <span className="hidden sm:inline">AI Helper</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-medium">NVIDIA</span>
+          </button>
+
           <button
             type="button"
             onClick={handleCloudSavePdf}
@@ -791,6 +821,15 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
           onClose={() => setShowWatermarkModal(false)}
         />
       )}
+
+      {/* NVIDIA NIM AI Assistant Modal */}
+      <NvidiaAiAssistantModal
+        isOpen={showAiAssistant}
+        onClose={() => setShowAiAssistant(false)}
+        currentPage={currentPage}
+        pageSnapshotUrl={pageDataUrl}
+        onStampTextToPdf={handleStampTextFromAi}
+      />
     </div>
   );
 };

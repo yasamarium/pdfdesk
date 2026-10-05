@@ -499,6 +499,7 @@ export const App: React.FC = () => {
         ) : !metadata ? (
           /* When no file is loaded, show the DropZone */
           <DropZone
+            mode={activeTab === 'editor' ? 'editor' : 'splitter'}
             onFileSelect={handleFileSelect}
             onLoadSample={handleLoadSample}
             isLoading={isLoading}
