@@ -43,16 +43,17 @@ export const Header: React.FC<HeaderProps> = ({
   onViewModeChange,
 }) => {
   return (
-    <header className="sticky top-0 z-40 w-full ios-glass-header transition-all">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
-        {/* Brand & Suite Tabs */}
+    <header className="sticky top-0 z-40 w-full ios-glass-header transition-all border-b border-white/5">
+      {/* Row 1: Brand, Desktop Navigation, View Switcher & Action Controls */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 md:h-16 flex items-center justify-between gap-2">
+        {/* Brand & Desktop Suite Tabs */}
         <div className="flex items-center gap-3 sm:gap-6 min-w-0">
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-[#0A84FF] to-[#5E5CE6] flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-gradient-to-tr from-[#0A84FF] to-[#5E5CE6] flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
               <FileText className="w-4 h-4 text-white" />
             </div>
             <div>
-              <span className="text-base font-bold tracking-tight text-white font-sans block leading-none">
+              <span className="text-sm sm:text-base font-bold tracking-tight text-white font-sans block leading-none">
                 PDFDesk
               </span>
               <span className="text-[10px] text-zinc-400 font-mono hidden sm:inline">
@@ -61,8 +62,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Suite Tabs (Splitter, Editor, Cloud Vault) */}
-          <nav className="flex items-center p-1 rounded-2xl bg-zinc-900/90 border border-white/10 text-xs">
+          {/* Desktop Suite Tabs (hidden on mobile, visible md+) */}
+          <nav className="hidden md:flex items-center p-1 rounded-2xl bg-zinc-900/90 border border-white/10 text-xs">
             <button
               type="button"
               onClick={() => onTabChange('splitter')}
@@ -73,8 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Scissors className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Splitter</span>
-              <span className="sm:hidden">Split</span>
+              <span>Splitter</span>
             </button>
 
             <button
@@ -88,8 +88,7 @@ export const Header: React.FC<HeaderProps> = ({
               title="Interactive PDF Editor Studio"
             >
               <PenTool className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Editor</span>
-              <span className="sm:hidden">Edit</span>
+              <span>Editor</span>
             </button>
 
             <button
@@ -102,8 +101,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Cloud className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Cloud Vault</span>
-              <span className="sm:hidden">Vault</span>
+              <span>Cloud Vault</span>
               <span className="w-1.5 h-1.5 rounded-full bg-[#30D158]" />
             </button>
           </nav>
@@ -151,21 +149,21 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         {/* Right actions: User Profile & Quick Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* User Profile Pill */}
           {user ? (
-            <div className="flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-full bg-zinc-900 border border-white/10 text-xs">
-              <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#0A84FF] to-[#5E5CE6] flex items-center justify-center text-[9px] font-bold text-white uppercase">
+            <div className="flex items-center gap-1.5 sm:gap-2 pl-2 pr-1 sm:pr-1.5 py-1 rounded-full bg-zinc-900 border border-white/10 text-xs shrink-0">
+              <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#0A84FF] to-[#5E5CE6] flex items-center justify-center text-[9px] font-bold text-white uppercase shrink-0">
                 {user.username.slice(0, 2)}
               </div>
-              <span className="text-zinc-200 font-semibold hidden sm:inline max-w-[100px] truncate">
+              <span className="text-zinc-200 font-semibold hidden sm:inline max-w-[90px] truncate">
                 @{user.username}
               </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#30D158]" title="Cloud Synced" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#30D158] shrink-0" title="Cloud Synced" />
               <button
                 type="button"
                 onClick={onSignOut}
-                className="p-1 rounded-full text-zinc-500 hover:text-red-400 hover:bg-white/10 transition-all cursor-pointer"
+                className="p-1 rounded-full text-zinc-500 hover:text-red-400 hover:bg-white/10 transition-all cursor-pointer shrink-0"
                 title="Sign Out"
               >
                 <LogOut className="w-3 h-3" />
@@ -175,10 +173,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onOpenSignIn}
-              className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#0A84FF] to-[#0071e3] hover:brightness-110 active:scale-95 text-xs font-semibold text-white transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
+              className="px-2.5 sm:px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#0A84FF] to-[#0071e3] hover:brightness-110 active:scale-95 text-xs font-semibold text-white transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer shrink-0"
             >
               <User className="w-3.5 h-3.5" />
-              <span>Sign In / Register</span>
+              <span>Sign In</span>
             </button>
           )}
 
@@ -186,7 +184,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onLoadSample}
               disabled={isLoading}
-              className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-xs font-medium text-white transition-all flex items-center gap-1.5 border border-white/10 cursor-pointer disabled:opacity-50"
+              className="px-2.5 sm:px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-xs font-medium text-white transition-all flex items-center gap-1.5 border border-white/10 cursor-pointer disabled:opacity-50 shrink-0"
               title="Load Sample Document"
             >
               <Sparkles className="w-3.5 h-3.5 text-[#0A84FF]" />
@@ -195,7 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <button
               onClick={onReset}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-all border border-white/5 cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-full bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-all border border-white/5 cursor-pointer shrink-0"
               title="New / Clear File"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -206,7 +204,7 @@ export const Header: React.FC<HeaderProps> = ({
             href="https://github.com/yasamarium/pdfdesk"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-all border border-white/5"
+            className="p-1.5 sm:p-2 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-all border border-white/5 shrink-0"
             title="GitHub Repository"
           >
             <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
@@ -214,6 +212,52 @@ export const Header: React.FC<HeaderProps> = ({
             </svg>
           </a>
         </div>
+      </div>
+
+      {/* Row 2: Mobile Suite Navigation Bar (visible < md, hidden md+) */}
+      <div className="md:hidden px-3 pb-2.5 pt-0.5">
+        <nav className="grid grid-cols-3 p-1 rounded-2xl bg-zinc-900/95 border border-white/10 text-xs shadow-inner">
+          <button
+            type="button"
+            onClick={() => onTabChange('splitter')}
+            className={`flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all cursor-pointer font-medium ${
+              activeTab === 'splitter'
+                ? 'bg-[#0A84FF] text-white font-semibold shadow-md shadow-blue-500/25'
+                : 'text-zinc-400 active:text-white'
+            }`}
+          >
+            <Scissors className="w-3.5 h-3.5" />
+            <span>Splitter</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onTabChange('editor')}
+            className={`flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all cursor-pointer font-medium ${
+              activeTab === 'editor'
+                ? 'bg-[#0A84FF] text-white font-semibold shadow-md shadow-blue-500/25'
+                : 'text-zinc-400 active:text-white'
+            }`}
+            title="Interactive PDF Editor Studio"
+          >
+            <PenTool className="w-3.5 h-3.5" />
+            <span>Editor</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onTabChange('vault')}
+            className={`flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all cursor-pointer font-medium ${
+              activeTab === 'vault'
+                ? 'bg-[#0A84FF] text-white font-semibold shadow-md shadow-blue-500/25'
+                : 'text-zinc-400 active:text-white'
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5" />
+            <span>Vault</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#30D158]" />
+          </button>
+        </nav>
       </div>
     </header>
   );
