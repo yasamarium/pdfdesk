@@ -90,7 +90,7 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
     if (!user) return;
     if (!confirm(`Are you sure you want to delete "${doc.name}" from your Cloud Drive?`)) return;
     try {
-      const ok = await deleteCloudDocument(doc.assetId, user.username);
+      const ok = await deleteCloudDocument(doc, user.username);
       if (ok) {
         setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
       } else {

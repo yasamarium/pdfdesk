@@ -70,7 +70,9 @@ export interface CloudDocument {
   downloadUrl: string;
   uploadedAt: string;
   uploadedBy: string;
-  releaseId: number;
-  assetId: number;
+  releaseId?: number;
+  assetId?: number | string;
+  storagePath?: string;
+  sha?: string;
   browserUrl?: string;
 }

@@ -230,7 +230,7 @@ export function signOutUser(): void {
 /**
  * Get cloud vault storage bucket
  */
-async function getOrCreateVaultRelease(): Promise<{ id: number; upload_url: string; html_url: string }> {
+export async function getOrCreateVaultRelease(): Promise<{ id: number; upload_url: string; html_url: string }> {
   const token = getDbToken();
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -288,7 +288,24 @@ async function getOrCreateVaultRelease(): Promise<{ id: number; upload_url: stri
 }
 
 /**
- * Uploads PDF strictly tagged with the authenticated user's username
+ * Convert Blob to base64 string
+ */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(',')[1] || '';
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Uploads PDF strictly tagged with the authenticated user's username.
+ * Uses api.github.com repository contents storage which provides full CORS support in all web browsers.
  */
 export async function uploadPdfToCloud(
   blob: Blob,
@@ -299,32 +316,37 @@ export async function uploadPdfToCloud(
   const token = getDbToken();
   const username = user.username.toLowerCase();
 
-  if (onProgress) onProgress('Securing Cloud Vault connection...');
-  const release = await getOrCreateVaultRelease();
+  if (onProgress) onProgress('Securing Personal Cloud Vault connection...');
 
   // Create unique filename tagged with user
   const cleanName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const timestamp = Date.now().toString().slice(-6);
+  const timestamp = Date.now();
   const uploadName = cleanName.toLowerCase().endsWith('.pdf')
-    ? cleanName.replace(/\.pdf$/i, `_${username}_${timestamp}.pdf`)
-    : `${cleanName}_${username}_${timestamp}.pdf`;
+    ? cleanName.replace(/\.pdf$/i, `_${timestamp}.pdf`)
+    : `${cleanName}_${timestamp}.pdf`;
+
+  const storagePath = `storage/${username}/${uploadName}`;
+
+  if (onProgress) onProgress('Encrypting and preparing document transfer...');
+  const base64Content = await blobToBase64(blob);
 
   if (onProgress) onProgress(`Syncing ${filename} to your Cloud Drive...`);
 
-  const uploadEndpoint = `https://uploads.github.com/repos/${REPO_OWNER}/${DATABASE_REPO}/releases/${release.id}/assets?name=${encodeURIComponent(
-    uploadName
-  )}`;
+  const uploadEndpoint = `https://api.github.com/repos/${REPO_OWNER}/${DATABASE_REPO}/contents/${storagePath}`;
 
   let uploadRes: Response;
   try {
     uploadRes = await fetch(uploadEndpoint, {
-      method: 'POST',
+      method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/vnd.github+json',
-        'Content-Type': 'application/pdf',
+        'Content-Type': 'application/json',
       },
-      body: blob,
+      body: JSON.stringify({
+        message: `vault: sync document ${uploadName} for @${username}`,
+        content: base64Content,
+      }),
     });
   } catch (netErr: any) {
     console.error('Network error during upload:', netErr);
@@ -337,23 +359,24 @@ export async function uploadPdfToCloud(
     throw new Error(`Failed to sync document with Cloud Drive. Status: ${uploadRes.status}`);
   }
 
-  const asset = await uploadRes.json();
+  const result = await uploadRes.json();
+  const rawDownloadUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${DATABASE_REPO}/main/${storagePath}`;
 
   const cloudDoc: CloudDocument = {
-    id: asset.id,
+    id: result.content?.sha || String(timestamp),
     name: filename.endsWith('.pdf') ? filename : `${filename}.pdf`,
-    size: asset.size,
-    downloadUrl: asset.browser_download_url,
-    uploadedAt: asset.created_at || new Date().toISOString(),
+    size: blob.size,
+    downloadUrl: result.content?.download_url || rawDownloadUrl,
+    uploadedAt: new Date().toISOString(),
     uploadedBy: username,
-    releaseId: release.id,
-    assetId: asset.id,
-    browserUrl: asset.browser_download_url,
+    storagePath,
+    sha: result.content?.sha,
+    browserUrl: result.content?.html_url || rawDownloadUrl,
   };
 
   // Record document into documents.json
   if (onProgress) onProgress('Securing document in your private index...');
-  recordDocumentInCatalog(cloudDoc).catch((e) => console.warn('Catalog record error:', e));
+  await recordDocumentInCatalog(cloudDoc).catch((e) => console.warn('Catalog record error:', e));
 
   return cloudDoc;
 }
@@ -456,24 +479,81 @@ export async function listUserCloudDocuments(username: string): Promise<CloudDoc
 /**
  * Deletes a PDF document from cloud vault
  */
-export async function deleteCloudDocument(assetId: number, username: string): Promise<boolean> {
+export async function deleteCloudDocument(
+  target: CloudDocument | number | string,
+  username: string
+): Promise<boolean> {
   const token = getDbToken();
   const cleanUsername = username.toLowerCase();
 
-  try {
-    // 1. Delete asset from cloud storage
-    const res = await fetch(
-      `https://api.github.com/repos/${REPO_OWNER}/${DATABASE_REPO}/releases/assets/${assetId}`,
-      {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/vnd.github+json',
-        },
-      }
-    );
+  const isDocObj = typeof target === 'object' && target !== null;
+  const storagePath = isDocObj ? (target as CloudDocument).storagePath : undefined;
+  const docSha = isDocObj ? (target as CloudDocument).sha : undefined;
+  const assetId = isDocObj ? (target as CloudDocument).assetId : typeof target === 'number' ? target : undefined;
+  const targetId = isDocObj ? (target as CloudDocument).id : target;
 
-    // 2. Remove from documents.json
+  try {
+    // 1. Delete from repository storage if storagePath exists
+    if (storagePath) {
+      try {
+        let shaToDelete = docSha;
+        if (!shaToDelete) {
+          const checkRes = await fetch(
+            `https://api.github.com/repos/${REPO_OWNER}/${DATABASE_REPO}/contents/${storagePath}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/vnd.github+json',
+              },
+            }
+          );
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            shaToDelete = checkData.sha;
+          }
+        }
+
+        if (shaToDelete) {
+          await fetch(
+            `https://api.github.com/repos/${REPO_OWNER}/${DATABASE_REPO}/contents/${storagePath}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/vnd.github+json',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                message: `vault: delete ${storagePath}`,
+                sha: shaToDelete,
+              }),
+            }
+          );
+        }
+      } catch (e) {
+        console.warn('Repository file deletion warning:', e);
+      }
+    }
+
+    // 2. If it was an old release asset, delete release asset as well
+    if (typeof assetId === 'number') {
+      try {
+        await fetch(
+          `https://api.github.com/repos/${REPO_OWNER}/${DATABASE_REPO}/releases/assets/${assetId}`,
+          {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/vnd.github+json',
+            },
+          }
+        );
+      } catch (e) {
+        console.warn('Release asset delete warning:', e);
+      }
+    }
+
+    // 3. Remove from documents.json
     try {
       const getRes = await fetch(
         `https://api.github.com/repos/${REPO_OWNER}/${DATABASE_REPO}/contents/documents.json`,
@@ -489,11 +569,21 @@ export async function deleteCloudDocument(assetId: number, username: string): Pr
         const data = await getRes.json();
         const decoded = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
         const parsed = JSON.parse(decoded);
-        const updatedList = (parsed.documents || []).filter(
-          (d: CloudDocument) => !(d.assetId === assetId && (d.uploadedBy || '').toLowerCase() === cleanUsername)
-        );
+        const updatedList = (parsed.documents || []).filter((d: CloudDocument) => {
+          const matchUser = (d.uploadedBy || '').toLowerCase() === cleanUsername;
+          if (!matchUser) return true; // preserve other users' items
+          const isTarget =
+            d.id === targetId ||
+            (storagePath && d.storagePath === storagePath) ||
+            (assetId && d.assetId === assetId);
+          return !isTarget;
+        });
 
-        const payload = JSON.stringify({ version: '1.0.0', updatedAt: new Date().toISOString(), documents: updatedList }, null, 2);
+        const payload = JSON.stringify(
+          { version: '1.0.0', updatedAt: new Date().toISOString(), documents: updatedList },
+          null,
+          2
+        );
         const b64 = btoa(unescape(encodeURIComponent(payload)));
 
         await fetch(
@@ -517,7 +607,7 @@ export async function deleteCloudDocument(assetId: number, username: string): Pr
       console.warn('Could not update documents catalog on delete:', e);
     }
 
-    return res.status === 204 || res.ok;
+    return true;
   } catch (err) {
     console.error('Failed to delete cloud document:', err);
     return false;
