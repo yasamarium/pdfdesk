@@ -26,6 +26,8 @@ import { SignatureModal } from './SignatureModal';
 import { WatermarkModal } from './WatermarkModal';
 import { CustomNameInput } from './CustomNameInput';
 import { NvidiaAiAssistantModal } from './NvidiaAiAssistantModal';
+import { MobileEditorLayout } from './MobileEditorLayout';
+import type { DeviceViewMode } from './Header';
 import type { PDFFileMetadata, TextAnnotation, WatermarkConfig, EditorTool, CloudUser } from '../types';
 
 interface PdfEditorViewProps {
@@ -34,6 +36,7 @@ interface PdfEditorViewProps {
   user: CloudUser | null;
   onOpenSignIn: () => void;
   onSaveToCloud: (blob: Blob, name: string) => Promise<void>;
+  viewMode?: DeviceViewMode;
 }
 
 export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
@@ -42,6 +45,7 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
   user,
   onOpenSignIn,
   onSaveToCloud,
+  viewMode = 'auto',
 }) => {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [activeTool, setActiveTool] = useState<EditorTool>('draw');
@@ -151,6 +155,9 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
   // Drawing event handlers
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (activeTool === 'select' || activeTool === 'text') return;
+    if ('touches' in e && e.cancelable) {
+      e.preventDefault();
+    }
 
     const canvas = drawingCanvasRef.current;
     if (!canvas) return;
@@ -196,6 +203,9 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawingRef.current) return;
+    if ('touches' in e && e.cancelable) {
+      e.preventDefault();
+    }
     const canvas = drawingCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -391,7 +401,7 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
   const currentRotation = pageRotations[currentPage] || 0;
   const pageTexts = textAnnotations.filter((t) => t.pageNumber === currentPage);
 
-  return (
+  const desktopLayout = (
     <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-4 space-y-4 animate-ios-enter">
       {/* Top Floating iOS Studio Toolbar */}
       <div className="ios-glass rounded-3xl p-3 border border-white/10 shadow-2xl flex flex-wrap items-center justify-between gap-3">
@@ -816,6 +826,73 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
           </div>
         </section>
       </div>
+    </div>
+  );
+
+  const mobileLayout = (
+    <MobileEditorLayout
+      originalName={metadata.name}
+      currentPage={currentPage}
+      setCurrentPage={setCurrentPage}
+      activeTool={activeTool}
+      setActiveTool={setActiveTool}
+      strokeColor={strokeColor}
+      setStrokeColor={setStrokeColor}
+      strokeWidth={strokeWidth}
+      setStrokeWidth={setStrokeWidth}
+      zoom={zoom}
+      setZoom={setZoom}
+      pageOrder={pageOrder}
+      pageRotations={pageRotations}
+      drawings={drawings}
+      textAnnotations={textAnnotations}
+      watermark={watermark}
+      pageDataUrl={pageDataUrl}
+      pageLoading={pageLoading}
+      outputFilename={outputFilename}
+      setOutputFilename={setOutputFilename}
+      isExporting={isExporting}
+      isCloudSaving={isCloudSaving}
+      onExportPdf={handleExportPdf}
+      onCloudSavePdf={handleCloudSavePdf}
+      onRotateCurrentPage={handleRotateCurrentPage}
+      onDeleteCurrentPage={handleDeleteCurrentPage}
+      onUndo={handleUndo}
+      onClearPageDrawings={handleClearPageDrawings}
+      onOpenSignatureModal={() => setShowSignatureModal(true)}
+      onOpenWatermarkModal={() => setShowWatermarkModal(true)}
+      onOpenAiAssistant={() => setShowAiAssistant(true)}
+      startDrawing={startDrawing}
+      draw={draw}
+      stopDrawing={stopDrawing}
+      handleCanvasClick={handleCanvasClick}
+      currentRotation={currentRotation}
+      pageTexts={pageTexts}
+      pageImageRef={pageImageRef}
+      drawingCanvasRef={drawingCanvasRef}
+    />
+  );
+
+  return (
+    <div className="w-full">
+      {viewMode === 'desktop' && desktopLayout}
+
+      {viewMode === 'mobile' && (
+        <div className="max-w-md mx-auto">
+          {mobileLayout}
+        </div>
+      )}
+
+      {viewMode === 'auto' && (
+        <>
+          <div className="block lg:hidden">
+            {mobileLayout}
+          </div>
+          <div className="hidden lg:block">
+            {desktopLayout}
+          </div>
+        </>
+      )}
 
       {/* Signature Modal */}
       {showSignatureModal && (

@@ -512,6 +512,7 @@ export const App: React.FC = () => {
             user={user}
             onOpenSignIn={() => setShowSignInModal(true)}
             onSaveToCloud={handleSaveToCloud}
+            viewMode={viewMode}
           />
         ) : (
           /* TAB 3: PDF SPLITTER */

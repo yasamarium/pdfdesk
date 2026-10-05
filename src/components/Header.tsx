@@ -73,7 +73,8 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Scissors className="w-3.5 h-3.5" />
-              <span>Splitter</span>
+              <span className="hidden sm:inline">Splitter</span>
+              <span className="sm:hidden">Split</span>
             </button>
 
             <button
@@ -87,7 +88,8 @@ export const Header: React.FC<HeaderProps> = ({
               title="Interactive PDF Editor Studio"
             >
               <PenTool className="w-3.5 h-3.5" />
-              <span>Editor</span>
+              <span className="hidden sm:inline">Editor</span>
+              <span className="sm:hidden">Edit</span>
             </button>
 
             <button
@@ -100,14 +102,15 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Cloud className="w-3.5 h-3.5" />
-              <span>Cloud Vault</span>
+              <span className="hidden sm:inline">Cloud Vault</span>
+              <span className="sm:hidden">Vault</span>
               <span className="w-1.5 h-1.5 rounded-full bg-[#30D158]" />
             </button>
           </nav>
         </div>
 
         {/* Center: Device View Switcher (Desktop only) */}
-        {hasFile && onViewModeChange && activeTab === 'splitter' && (
+        {hasFile && onViewModeChange && (activeTab === 'splitter' || activeTab === 'editor') && (
           <div className="hidden xl:flex items-center p-1 rounded-2xl bg-zinc-900/90 border border-white/10 text-xs">
             <button
               type="button"
