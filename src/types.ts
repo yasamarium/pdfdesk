@@ -52,13 +52,16 @@ export interface WatermarkConfig {
   allPages: boolean;
 }
 
-export interface CloudUser {
+export interface AppUser {
+  id: string;
   username: string;
-  name: string;
-  avatarUrl: string;
-  token: string;
-  signedInAt: string;
+  displayName: string;
+  avatarUrl?: string;
+  createdAt?: string;
+  lastLoginAt?: string;
 }
+
+export type CloudUser = AppUser;
 
 export interface CloudDocument {
   id: string | number;

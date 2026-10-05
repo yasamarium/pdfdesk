@@ -154,15 +154,14 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-2">
           {/* User Profile Pill */}
           {user ? (
-            <div className="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full bg-zinc-900 border border-white/10 text-xs">
-              <img
-                src={user.avatarUrl || 'https://github.com/github.png'}
-                alt={user.username}
-                className="w-5 h-5 rounded-full ring-1 ring-white/20"
-              />
-              <span className="text-zinc-200 font-medium hidden sm:inline max-w-[100px] truncate">
+            <div className="flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-full bg-zinc-900 border border-white/10 text-xs">
+              <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#0A84FF] to-[#5E5CE6] flex items-center justify-center text-[9px] font-bold text-white uppercase">
+                {user.username.slice(0, 2)}
+              </div>
+              <span className="text-zinc-200 font-semibold hidden sm:inline max-w-[100px] truncate">
                 @{user.username}
               </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#30D158]" title="Cloud Synced" />
               <button
                 type="button"
                 onClick={onSignOut}
@@ -176,10 +175,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onOpenSignIn}
-              className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-xs font-medium text-white transition-all flex items-center gap-1.5 border border-white/10 cursor-pointer"
+              className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#0A84FF] to-[#0071e3] hover:brightness-110 active:scale-95 text-xs font-semibold text-white transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
             >
-              <User className="w-3.5 h-3.5 text-[#0A84FF]" />
-              <span className="hidden sm:inline">Sign In</span>
+              <User className="w-3.5 h-3.5" />
+              <span>Sign In / Register</span>
             </button>
           )}
 

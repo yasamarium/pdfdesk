@@ -6,10 +6,10 @@ import { DesktopLayout } from './components/DesktopLayout';
 import { MobileLayout } from './components/MobileLayout';
 import { PdfEditorView } from './components/PdfEditorView';
 import { CloudVaultView } from './components/CloudVaultView';
-import { SignInModal } from './components/SignInModal';
+import { AuthModal } from './components/AuthModal';
 import { PagePreviewModal } from './components/PagePreviewModal';
 import { ResultPreviewModal } from './components/ResultPreviewModal';
-import type { PDFFileMetadata, PageInfo, SplitOptions, AppTab, CloudUser } from './types';
+import type { PDFFileMetadata, PageInfo, SplitOptions, AppTab, AppUser } from './types';
 import { loadPDFDocument, renderPageThumbnail } from './utils/pdfParser';
 import { parseRangeString, formatPagesToRange } from './utils/rangeParser';
 import {
@@ -19,14 +19,14 @@ import {
   downloadBlob,
 } from './utils/pdfSplitter';
 import type { SplitResult } from './utils/pdfSplitter';
-import { getStoredUser, signOutUser, uploadPdfToCloud } from './services/githubCloud';
+import { getCurrentUser, signOutUser, uploadPdfToCloud } from './services/githubDatabase';
 
 export const App: React.FC = () => {
   // Navigation suite tab: splitter, editor, or vault
   const [activeTab, setActiveTab] = useState<AppTab>('splitter');
 
-  // Authenticated GitHub user
-  const [user, setUser] = useState<CloudUser | null>(null);
+  // Authenticated user
+  const [user, setUser] = useState<AppUser | null>(null);
   const [showSignInModal, setShowSignInModal] = useState<boolean>(false);
 
   // Document state
@@ -62,7 +62,7 @@ export const App: React.FC = () => {
 
   // Check stored user session on mount
   useEffect(() => {
-    const cached = getStoredUser();
+    const cached = getCurrentUser();
     if (cached) setUser(cached);
   }, []);
 
@@ -363,6 +363,10 @@ export const App: React.FC = () => {
 
   // Cloud Save Handler
   const handleSaveToCloud = async (blob: Blob, name: string) => {
+    if (!user) {
+      setShowSignInModal(true);
+      return;
+    }
     try {
       await uploadPdfToCloud(blob, name, user);
       confetti({
@@ -371,10 +375,10 @@ export const App: React.FC = () => {
         origin: { y: 0.7 },
         colors: ['#30D158', '#0A84FF', '#BF5AF2', '#FFFFFF'],
       });
-      alert(`"${name}" was saved to GitHub Releases Cloud Vault successfully!`);
+      alert(`"${name}" was saved to your private Cloud Drive successfully!`);
       setActiveTab('vault');
     } catch (err: any) {
-      alert(`Cloud upload failed: ${err.message || 'Unknown error'}`);
+      alert(`Cloud sync failed: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -572,9 +576,9 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* Sign In Modal */}
+      {/* Auth Modal */}
       {showSignInModal && (
-        <SignInModal
+        <AuthModal
           onClose={() => setShowSignInModal(false)}
           onSuccess={(u) => setUser(u)}
         />

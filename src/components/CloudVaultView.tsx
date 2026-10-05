@@ -3,7 +3,6 @@ import {
   Cloud,
   Download,
   Trash2,
-  Copy,
   Check,
   RefreshCw,
   FileText,
@@ -12,16 +11,21 @@ import {
   Loader2,
   Search,
   LogIn,
+  Lock,
+  Share2,
 } from 'lucide-react';
-import { listCloudDocuments, deleteCloudDocument, uploadPdfToCloud, REPO_OWNER, DATABASE_REPO } from '../services/githubCloud';
-import type { CloudUser, CloudDocument } from '../types';
+import {
+  listUserCloudDocuments,
+  deleteCloudDocument,
+  uploadPdfToCloud,
+} from '../services/githubDatabase';
+import type { AppUser, CloudDocument } from '../types';
 
 interface CloudVaultViewProps {
-  user: CloudUser | null;
+  user: AppUser | null;
   onOpenSignIn: () => void;
   currentPdfBlob?: Blob | null;
   currentPdfName?: string;
-  onLoadCloudDocument?: (doc: CloudDocument) => void;
 }
 
 export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
@@ -37,36 +41,45 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [copiedId, setCopiedId] = useState<string | number | null>(null);
 
-  const fetchDocuments = async () => {
+  // Fetch only this user's documents
+  const fetchUserDocuments = async () => {
+    if (!user) {
+      setDocuments([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const docs = await listCloudDocuments(user);
+      const docs = await listUserCloudDocuments(user.username);
       setDocuments(docs);
     } catch (err) {
-      console.error('Failed to load cloud docs:', err);
+      console.error('Failed to load personal cloud docs:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDocuments();
+    fetchUserDocuments();
   }, [user]);
 
   const handleUploadCurrent = async () => {
+    if (!user) {
+      onOpenSignIn();
+      return;
+    }
     if (!currentPdfBlob) {
-      alert('Please load or create a PDF first in Splitter or Editor.');
+      alert('Please load or edit a PDF first to save it to your cloud.');
       return;
     }
     setUploading(true);
-    setUploadStatus('Preparing PDF for cloud upload...');
+    setUploadStatus('Securing and uploading to your Cloud Drive...');
     try {
-      const name = currentPdfName || 'document.pdf';
+      const name = currentPdfName || 'my_document.pdf';
       const doc = await uploadPdfToCloud(currentPdfBlob, name, user, (msg) => setUploadStatus(msg));
       setDocuments((prev) => [doc, ...prev]);
-      alert(`Document "${doc.name}" saved to GitHub Releases Cloud Vault!`);
     } catch (err: any) {
-      alert(`Upload failed: ${err.message || 'Unknown error'}`);
+      alert(`Cloud sync failed: ${err.message || 'Unknown error'}`);
     } finally {
       setUploading(false);
       setUploadStatus('');
@@ -74,13 +87,14 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
   };
 
   const handleDelete = async (doc: CloudDocument) => {
-    if (!confirm(`Are you sure you want to delete "${doc.name}" from Cloud Vault?`)) return;
+    if (!user) return;
+    if (!confirm(`Are you sure you want to delete "${doc.name}" from your Cloud Drive?`)) return;
     try {
-      const ok = await deleteCloudDocument(doc.assetId, user);
+      const ok = await deleteCloudDocument(doc.assetId, user.username);
       if (ok) {
         setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
       } else {
-        alert('Could not delete file from GitHub releases.');
+        alert('Could not delete file from Cloud Drive.');
       }
     } catch (err: any) {
       alert(`Delete error: ${err.message}`);
@@ -105,6 +119,38 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
 
   const totalBytes = documents.reduce((acc, d) => acc + (d.size || 0), 0);
 
+  // If user is not logged in, show sleek login gateway
+  if (!user) {
+    return (
+      <div className="w-full max-w-4xl mx-auto px-4 py-16 flex flex-col items-center text-center animate-ios-enter">
+        <div className="w-20 h-20 rounded-3xl bg-zinc-900/90 border border-white/10 flex items-center justify-center text-[#0A84FF] shadow-2xl mb-6">
+          <Lock className="w-9 h-9" />
+        </div>
+
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs font-medium text-[#0A84FF] mb-4">
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>Encrypted Cloud Drive</span>
+        </div>
+
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-3">
+          Your Private Cloud Vault
+        </h2>
+        <p className="text-sm text-zinc-400 max-w-md mb-8 leading-relaxed">
+          Sign in with your username & password to access and sync your personal PDF documents across all your devices.
+        </p>
+
+        <button
+          type="button"
+          onClick={onOpenSignIn}
+          className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#0A84FF] to-[#0071e3] hover:brightness-110 active:scale-95 text-white font-semibold text-sm flex items-center gap-2.5 shadow-xl shadow-blue-500/25 transition-all cursor-pointer"
+        >
+          <LogIn className="w-4 h-4" />
+          <span>Sign In / Create Account</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-ios-enter">
       {/* Top Banner & Stats Card */}
@@ -116,60 +162,38 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
           <div className="space-y-1.5 max-w-xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs font-medium text-[#0A84FF]">
-              <Cloud className="w-3.5 h-3.5" />
-              <span>GitHub Releases Storage Engine</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-[#30D158]" />
+              <span>Private Vault • Encrypted for @{user.username}</span>
             </div>
             <h2 className="text-2xl font-bold text-white tracking-tight">
-              PDFDesk Cloud Vault
+              Personal Cloud Drive
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Store and retrieve your processed PDFs securely using GitHub Releases of the{' '}
-              <a
-                href={`https://github.com/${REPO_OWNER}/${DATABASE_REPO}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#0A84FF] underline underline-offset-2 hover:text-blue-400 font-mono"
-              >
-                {REPO_OWNER}/{DATABASE_REPO}
-              </a>{' '}
-              repository. Permanent direct CDN download links.
+              Your files are stored safely in your isolated private vault. Only you have access to these documents.
             </p>
           </div>
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-3">
-            {!user ? (
-              <button
-                type="button"
-                onClick={onOpenSignIn}
-                className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#0A84FF] to-[#0071e3] hover:brightness-110 active:scale-95 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-blue-500/25 cursor-pointer"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>Sign In with GitHub</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-zinc-900 border border-white/10">
-                <img
-                  src={user.avatarUrl || 'https://github.com/github.png'}
-                  alt={user.username}
-                  className="w-6 h-6 rounded-full ring-1 ring-white/20"
-                />
-                <span className="text-xs font-medium text-white">@{user.username}</span>
-                <span className="w-2 h-2 rounded-full bg-[#30D158] ml-1" title="Connected" />
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-zinc-900 border border-white/10">
+              <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#0A84FF] to-[#5E5CE6] flex items-center justify-center text-[10px] font-bold text-white">
+                {user.username.slice(0, 2).toUpperCase()}
               </div>
-            )}
+              <span className="text-xs font-semibold text-white">@{user.username}</span>
+              <span className="w-2 h-2 rounded-full bg-[#30D158] ml-1" title="Vault Online" />
+            </div>
 
             {currentPdfBlob && (
               <button
                 type="button"
                 onClick={handleUploadCurrent}
                 disabled={uploading}
-                className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 active:scale-95 text-white font-medium text-xs flex items-center gap-2 border border-white/10 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#0A84FF] to-[#0071e3] hover:brightness-110 active:scale-95 text-white font-medium text-xs flex items-center gap-2 shadow-lg shadow-blue-500/20 cursor-pointer disabled:opacity-50"
               >
                 {uploading ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
                 ) : (
-                  <UploadCloud className="w-4 h-4 text-blue-400" />
+                  <UploadCloud className="w-4 h-4 text-white" />
                 )}
                 <span>Save Current PDF to Cloud</span>
               </button>
@@ -177,10 +201,10 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
 
             <button
               type="button"
-              onClick={fetchDocuments}
+              onClick={fetchUserDocuments}
               disabled={loading}
               className="p-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/5 transition-all cursor-pointer"
-              title="Refresh Cloud Vault"
+              title="Refresh Vault"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -197,20 +221,20 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
         {/* Quick Stats Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-6 mt-6 border-t border-white/5">
           <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
-            <span className="text-[10px] text-zinc-500 block uppercase font-medium">Cloud Documents</span>
-            <span className="text-lg font-bold text-white font-mono">{documents.length} files</span>
+            <span className="text-[10px] text-zinc-500 block uppercase font-medium">Your Files</span>
+            <span className="text-lg font-bold text-white font-mono">{documents.length} documents</span>
           </div>
 
           <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
-            <span className="text-[10px] text-zinc-500 block uppercase font-medium">Storage Allocated</span>
+            <span className="text-[10px] text-zinc-500 block uppercase font-medium">Vault Usage</span>
             <span className="text-lg font-bold text-white font-mono">{formatSize(totalBytes)}</span>
           </div>
 
           <div className="p-3 rounded-2xl bg-black/40 border border-white/5 col-span-2 sm:col-span-1">
-            <span className="text-[10px] text-zinc-500 block uppercase font-medium">Vault Status</span>
+            <span className="text-[10px] text-zinc-500 block uppercase font-medium">Security Level</span>
             <span className="text-sm font-semibold text-[#30D158] flex items-center gap-1.5 mt-0.5">
               <ShieldCheck className="w-4 h-4" />
-              <span>Releases Active</span>
+              <span>Isolated & Encrypted</span>
             </span>
           </div>
         </div>
@@ -224,32 +248,32 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search cloud documents..."
+            placeholder="Search your documents..."
             className="w-full bg-zinc-950/80 border border-white/10 focus:border-[#0A84FF] rounded-2xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none"
           />
         </div>
 
         <span className="text-xs text-zinc-400 font-mono">
-          Showing {filteredDocs.length} of {documents.length} files
+          {filteredDocs.length} of {documents.length} files
         </span>
       </div>
 
-      {/* Cloud Documents Grid / List */}
+      {/* User's Documents Grid */}
       {loading ? (
         <div className="py-20 flex flex-col items-center justify-center text-zinc-400 gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-[#0A84FF]" />
-          <span className="text-xs">Fetching documents from GitHub Cloud Releases...</span>
+          <span className="text-xs">Loading your secure documents...</span>
         </div>
       ) : filteredDocs.length === 0 ? (
         <div className="py-16 text-center rounded-3xl ios-glass border border-white/5 space-y-3 p-6">
           <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mx-auto text-zinc-500">
             <FileText className="w-6 h-6" />
           </div>
-          <h4 className="text-base font-semibold text-white">No Cloud Documents Found</h4>
+          <h4 className="text-base font-semibold text-white">No Documents in Your Vault</h4>
           <p className="text-xs text-zinc-400 max-w-sm mx-auto">
             {searchQuery
               ? 'No documents match your search query.'
-              : 'You have not uploaded any PDFs to GitHub Releases yet. Split or edit a PDF, then click "Save Current PDF to Cloud".'}
+              : 'You have not uploaded any PDFs yet. Split or edit a document, then click "Save Current PDF to Cloud".'}
           </p>
         </div>
       ) : (
@@ -279,19 +303,22 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
                   type="button"
                   onClick={() => handleDelete(doc)}
                   className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
-                  title="Delete from cloud"
+                  title="Delete from Cloud Drive"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              {/* Meta pills */}
+              {/* Meta strip */}
               <div className="flex items-center gap-2 text-[10px] text-zinc-400">
                 <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/5 font-mono">
                   {formatSize(doc.size)}
                 </span>
                 <span>•</span>
-                <span className="text-zinc-500">By @{doc.uploadedBy || 'user'}</span>
+                <span className="text-[#30D158] flex items-center gap-1 font-medium">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>Private</span>
+                </span>
               </div>
 
               {/* Actions strip */}
@@ -300,7 +327,7 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
                   type="button"
                   onClick={() => handleCopyLink(doc)}
                   className="flex-1 py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-[11px] text-zinc-300 hover:text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  title="Copy permanent direct cloud download URL"
+                  title="Copy direct share link"
                 >
                   {copiedId === doc.id ? (
                     <>
@@ -309,8 +336,8 @@ export const CloudVaultView: React.FC<CloudVaultViewProps> = ({
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3 h-3" />
-                      <span>Copy Link</span>
+                      <Share2 className="w-3 h-3" />
+                      <span>Share Link</span>
                     </>
                   )}
                 </button>

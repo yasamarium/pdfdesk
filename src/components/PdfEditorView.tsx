@@ -509,14 +509,14 @@ export const PdfEditorView: React.FC<PdfEditorViewProps> = ({
             onClick={handleCloudSavePdf}
             disabled={isCloudSaving || isExporting}
             className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 text-xs font-semibold text-white transition-all flex items-center gap-1.5 border border-white/10 cursor-pointer disabled:opacity-50"
-            title="Upload directly to GitHub Releases Cloud Vault"
+            title="Save document to your secure Cloud Drive"
           >
             {isCloudSaving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
             ) : (
               <UploadCloud className="w-3.5 h-3.5 text-blue-400" />
             )}
-            <span>Save to Cloud</span>
+            <span>Save to Cloud Drive</span>
           </button>
 
           <button
