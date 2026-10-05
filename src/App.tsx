@@ -10,6 +10,7 @@ import { AuthModal } from './components/AuthModal';
 import { PagePreviewModal } from './components/PagePreviewModal';
 import { ResultPreviewModal } from './components/ResultPreviewModal';
 import { PublicPdfViewer } from './components/PublicPdfViewer';
+import { GitHubRepoView } from './components/GitHubRepoView';
 import type { PDFFileMetadata, PageInfo, SplitOptions, AppTab, AppUser } from './types';
 import { loadPDFDocument, renderPageThumbnail } from './utils/pdfParser';
 import { parseRangeString, formatPagesToRange } from './utils/rangeParser';
@@ -42,6 +43,21 @@ function getInitialRouteCode(): string | null {
   if (hashMatch && hashMatch[1]) return hashMatch[1];
 
   return null;
+}
+
+function isInitialRepoRoute(): boolean {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname.toLowerCase();
+  const search = window.location.search.toLowerCase();
+  const hash = window.location.hash.toLowerCase();
+  return (
+    path === '/code' ||
+    path === '/repo' ||
+    path === '/github' ||
+    search.includes('repo=') ||
+    hash.includes('code') ||
+    hash.includes('repo')
+  );
 }
 
 export const App: React.FC = () => {
@@ -85,16 +101,28 @@ export const App: React.FC = () => {
 
   // In-browser Public PDF Viewer routing (/v/:shortCode)
   const [viewingShortCode, setViewingShortCode] = useState<string | null>(getInitialRouteCode);
+  const [showRepoView, setShowRepoView] = useState<boolean>(isInitialRepoRoute);
 
   useEffect(() => {
     const checkRoute = () => {
       setViewingShortCode(getInitialRouteCode());
+      setShowRepoView(isInitialRepoRoute());
     };
 
     checkRoute();
     window.addEventListener('popstate', checkRoute);
     return () => window.removeEventListener('popstate', checkRoute);
   }, []);
+
+  const handleOpenRepo = () => {
+    setShowRepoView(true);
+    window.history.pushState({}, '', '/code');
+  };
+
+  const handleBackFromRepo = () => {
+    setShowRepoView(false);
+    window.history.pushState({}, '', '/');
+  };
 
   // Check stored user session on mount
   useEffect(() => {
@@ -452,6 +480,11 @@ export const App: React.FC = () => {
     );
   }
 
+  // Render In-Domain GitHub-Style Code Explorer & README Viewer
+  if (showRepoView) {
+    return <GitHubRepoView onBackToStudio={handleBackFromRepo} />;
+  }
+
   return (
     <div className="min-h-screen bg-black text-[#f5f5f7] flex flex-col font-sans selection:bg-[#0A84FF] selection:text-white">
       {/* Hidden File Picker */}
@@ -480,6 +513,7 @@ export const App: React.FC = () => {
         onSignOut={handleSignOut}
         viewMode={viewMode}
         onViewModeChange={(mode) => setViewMode(mode)}
+        onOpenRepo={handleOpenRepo}
       />
 
       {/* Main Content Area */}
